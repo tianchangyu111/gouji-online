@@ -303,6 +303,7 @@ function processNaoji(room, seat) {
   const now = Date.now();
   const window = {
     id: ++game.naojiWindowSeq,
+    type: 'naoji',
     seat,
     startAt: now,
     expiresAt: now + 2000,
@@ -347,10 +348,70 @@ function processGrab(room, seat) {
     if (window.paidTo.includes(seat)) continue;
     const payRes = applyNaojiPenalty(room, window.seat, seat);
     window.paidTo.push(seat);
-    results.push({ fromSeat: window.seat, toSeat: seat, ...payRes });
+    results.push({ fromSeat: window.seat, toSeat: seat, windowType: window.type || 'naoji', ...payRes });
   }
 
   return { ok: true, results };
+}
+
+function processPeek(room, seat) {
+  const game = room.game;
+  if (!game || room.state !== 'playing') return { ok: false, msg: '游戏未开始' };
+  const me = room.players.find(p => p.seat === seat);
+  if ((me?.name || '').trim() !== '张哲') return { ok: false, msg: '只有张哲可以使用验牌' };
+  if (game.finished[seat]) return { ok: false, msg: '你已经出完了，不能再验牌' };
+  if (game.currentPlayer === seat) return { ok: false, msg: '自己的回合不能验牌' };
+  if ((game.peekUses?.[seat] || 0) >= (game.peekMax?.[seat] || 0)) return { ok: false, msg: '验牌次数已用完' };
+
+  game.peekUses[seat] = (game.peekUses[seat] || 0) + 1;
+  const leftSeat = (seat + 5) % 6;
+  const rightSeat = (seat + 1) % 6;
+
+  pruneGrabClicks(game);
+  const now = Date.now();
+  const window = {
+    id: ++game.naojiWindowSeq,
+    type: 'peek',
+    seat,
+    startAt: now,
+    expiresAt: now + 2000,
+    paidTo: [],
+  };
+
+  const uniqueRecentGrabbers = [...new Set((game.recentGrabClicks || [])
+    .filter(item => now - item.time <= 2000 && item.seat !== seat)
+    .map(item => item.seat))];
+
+  const penaltyLogs = [];
+  for (const gSeat of uniqueRecentGrabbers) {
+    const payRes = applyNaojiPenalty(room, seat, gSeat);
+    window.paidTo.push(gSeat);
+    penaltyLogs.push({ target: gSeat, ...payRes });
+  }
+
+  game.activeNaojiWindows.push(window);
+
+  return {
+    ok: true,
+    penalties: penaltyLogs,
+    uses: game.peekUses[seat],
+    max: game.peekMax[seat],
+    expiresAt: now + 3000,
+    sides: [
+      {
+        seat: leftSeat,
+        side: '左侧',
+        name: getSeatPlayerName(room, leftSeat),
+        cards: game.hands[leftSeat].map(cloneCard),
+      },
+      {
+        seat: rightSeat,
+        side: '右侧',
+        name: getSeatPlayerName(room, rightSeat),
+        cards: game.hands[rightSeat].map(cloneCard),
+      },
+    ],
+  };
 }
 
 // ============ DEAL ============
@@ -573,6 +634,14 @@ function allFoursSelectedIfKaiDian(hand, cards) {
   return all4.length > 0 && cards.length === all4.length && cards.every(c => c.rank === 4);
 }
 
+function canTriggerKaiDian(game, seat) {
+  if (!game || game.finished[seat]) return false;
+  if ((game.rankings?.length || 0) >= 2) return false;
+  if (countRank(game.hands[seat], 4) <= 0) return false;
+  if (game.openedDian?.[seat]) return false;
+  if (game.lostKaiDian?.[seat]) return false;
+  return true;
+}
 
 function stabilizeCurrentPlayer(game) {
   if (!game) return;
@@ -743,6 +812,7 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
     goujiPair: [-1, -1],
     canKaiDian: -1,
     openedDian: [false, false, false, false, false, false],
+    lostKaiDian: [false, false, false, false, false, false],
 
     playerActions: [{},{},{},{},{},{}],
     roundNumber,
@@ -781,6 +851,7 @@ function getStateForPlayer(room, seat) {
     isHost: room.hostId === me?.id,
     canKaiDian: game.canKaiDian,
     openedDian: game.openedDian,
+    lostKaiDian: game.lostKaiDian || [false, false, false, false, false, false],
     roundNumber: game.roundNumber,
     tributeLog: game.tributeLog || [],
     buySanLog: game.buySanLog || [],
@@ -821,28 +892,67 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (cards.length !== cardIds.length) return { ok: false, msg: '无效的牌' };
 
   if (game.canKaiDian === seat) {
-    if (!cards.every(c => c.rank === 4)) return { ok: false, msg: '现在只能出4' };
-    if (!allFoursSelectedIfKaiDian(hand, cards)) return { ok: false, msg: '现在必须把手里所有4一起打出' };
+    const wantKaiDian = playMode === 'kaidian';
+    const wantCallGong = playMode === 'callgong';
+    const wantNormalFour = playMode === 'normal4';
 
-    const isCallGong = playMode === 'callgong';
+    if (wantKaiDian || wantCallGong) {
+      if (!cards.every(c => c.rank === 4)) return { ok: false, msg: '现在只能出4' };
+      if (!allFoursSelectedIfKaiDian(hand, cards)) return { ok: false, msg: '开点或叫贡必须把手里所有4一起打出' };
 
-    game.hands[seat] = removeCardsByIds(hand, cardIds);
-    game.playedPool.push(...cards.map(cloneCard));
-    game.playerActions[seat] = { type: 'play', cards: [...cards], isKaiDian: !isCallGong, isCallGong };
-    if (isCallGong) {
-      room.calledTributeSeats[seat] = true;
-    } else {
-      game.openedDian[seat] = true;
+      game.hands[seat] = removeCardsByIds(hand, cardIds);
+      game.playedPool.push(...cards.map(cloneCard));
+      game.playerActions[seat] = { type: 'play', cards: [...cards], isKaiDian: wantKaiDian, isCallGong: wantCallGong };
+      if (wantCallGong) {
+        room.calledTributeSeats[seat] = true;
+      } else {
+        game.openedDian[seat] = true;
+      }
+      maybeFinishPlayer(game, seat);
+
+      if (maybeGameOver(game)) return { ok: true, gameOver: true };
+
+      const nextStarter = game.finished[seat] ? activeSeats(game)[0] : seat;
+      return resetRound(game, nextStarter, seat, game.playerActions[seat]);
     }
-    maybeFinishPlayer(game, seat);
 
+    if (!wantNormalFour) {
+      return { ok: false, msg: '当前只能选择平出4、开点4或叫贡4' };
+    }
+    if (!cards.length || !cards.every(c => c.rank === 4)) return { ok: false, msg: '平出时只能出4' };
+    if (!isValidPlay(cards)) return { ok: false, msg: '无效出牌组合' };
+
+    const remainingAfterPlay = hand.filter(c => !cardIds.includes(c.id));
+    game.hands[seat] = remainingAfterPlay;
+    game.playedPool.push(...cards.map(cloneCard));
+    game.playerActions[seat] = { type: 'play', cards: [...cards], isNormalFour: true };
+    game.lostKaiDian[seat] = true;
+
+    game.isGoujiMode = false;
+    game.goujiPair = [-1, -1];
+    game.canKaiDian = -1;
+    game.tablePlay = { cards: [...cards], player: seat, isGouji: false };
+    game.passedThisRound = [];
+    game.roundStarter = seat;
+
+    maybeFinishPlayer(game, seat);
     if (maybeGameOver(game)) return { ok: true, gameOver: true };
 
-    const nextStarter = game.finished[seat] ? activeSeats(game)[0] : seat;
-    return resetRound(game, nextStarter, seat, game.playerActions[seat]);
+    if (game.finished[seat]) {
+      const next = nextActiveSeat(game, seat);
+      return resetRound(game, next === -1 ? activeSeats(game)[0] : next);
+    }
+
+    const next = nextActiveSeat(game, seat);
+    if (next === -1 || next === game.tablePlay.player) {
+      const starter = game.finished[seat] ? activeSeats(game)[0] : seat;
+      return resetRound(game, starter);
+    }
+
+    game.currentPlayer = next;
+    return { ok: true };
   }
 
-  if (cards.some(c => c.rank === 4)) return { ok: false, msg: '4只能在够级对头管不住后开点时出' };
   if (!isValidPlay(cards)) return { ok: false, msg: '无效出牌组合' };
 
   const remainingAfterPlay = hand.filter(c => !cardIds.includes(c.id));
@@ -853,6 +963,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
 
   game.hands[seat] = remainingAfterPlay;
   game.playedPool.push(...cards.map(cloneCard));
+  if (cards.some(c => c.rank === 4)) game.lostKaiDian[seat] = true;
   const isGouji = isGoujiPlay(cards);
   game.tablePlay = { cards: [...cards], player: seat, isGouji };
   game.passedThisRound = [];
@@ -906,7 +1017,7 @@ function processPass(room, seat) {
     game.isGoujiMode = false;
     const attacker = game.goujiPair[0];
 
-    if (!game.finished[attacker] && countRank(game.hands[attacker], 4) > 0 && !game.openedDian[attacker]) {
+    if (canTriggerKaiDian(game, attacker)) {
       game.canKaiDian = attacker;
       game.currentPlayer = attacker;
       return { ok: true };
@@ -1019,12 +1130,14 @@ io.on('connection', (socket) => {
       ? `${who} 发动孬急，从已出牌区摸到 ${cardText(result.card)}`
       : `${who} 发动孬急，从 ${result.sourceName} 手里摸到 ${cardText(result.card)}`;
     io.to(currentRoom).emit('toast_msg', { msg: baseMsg });
+    io.to(currentRoom).emit('sound_cue', { type: 'secret' });
 
     if (result.penalties && result.penalties.length) {
       for (const item of result.penalties) {
         const targetName = room.players.find(p => p.seat === item.target)?.name || ('座位' + (item.target + 1));
         if (item.ok) {
           io.to(currentRoom).emit('toast_msg', { msg: `${who} 被${targetName}抓中，赔出 ${cardText(item.card)}` });
+          io.to(currentRoom).emit('sound_cue', { type: 'caught' });
         } else {
           io.to(currentRoom).emit('toast_msg', { msg: `${who} 被${targetName}抓中，但${item.msg.replace(/^.*?没有/, '没有')}` });
         }
@@ -1048,10 +1161,12 @@ io.on('connection', (socket) => {
 
     for (const item of result.results) {
       const fromName = room.players.find(p => p.seat === item.fromSeat)?.name || ('座位' + (item.fromSeat + 1));
+      const actName = item.windowType === 'peek' ? '验牌' : '孬急';
       if (item.ok) {
-        io.to(currentRoom).emit('toast_msg', { msg: `${who} 抓到 ${fromName} 的孬急，获得 ${cardText(item.card)}` });
+        io.to(currentRoom).emit('toast_msg', { msg: `${who} 抓到 ${fromName} 的${actName}，获得 ${cardText(item.card)}` });
+        io.to(currentRoom).emit('sound_cue', { type: 'caught' });
       } else {
-        io.to(currentRoom).emit('toast_msg', { msg: `${who} 抓到 ${fromName} 的孬急，但对方没有2以上的牌` });
+        io.to(currentRoom).emit('toast_msg', { msg: `${who} 抓到 ${fromName} 的${actName}，但对方没有2以上的牌` });
       }
     }
 
@@ -1062,45 +1177,32 @@ io.on('connection', (socket) => {
   socket.on('peek_neighbors', () => {
     const room = rooms[currentRoom];
     if (!room || !room.game) return;
-    const me = room.players.find(p => p.seat === currentSeat);
-    if ((me?.name || '').trim() !== '张哲') {
-      return socket.emit('error_msg', { msg: '只有张哲可以使用验牌' });
-    }
-    if (room.game.finished[currentSeat]) {
-      return socket.emit('error_msg', { msg: '你已经出完了，不能再验牌' });
-    }
-    if (room.game.currentPlayer === currentSeat) {
-      return socket.emit('error_msg', { msg: '自己的回合不能验牌' });
-    }
-    if ((room.game.peekUses?.[currentSeat] || 0) >= (room.game.peekMax?.[currentSeat] || 0)) {
-      return socket.emit('error_msg', { msg: '验牌次数已用完' });
-    }
+    const result = processPeek(room, currentSeat);
+    if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
 
-    room.game.peekUses[currentSeat] = (room.game.peekUses[currentSeat] || 0) + 1;
-
-    const leftSeat = (currentSeat + 5) % 6;
-    const rightSeat = (currentSeat + 1) % 6;
-
+    const who = room.players.find(p => p.seat === currentSeat)?.name || ('座位' + (currentSeat + 1));
     socket.emit('peek_result', {
-      expiresAt: Date.now() + 3000,
-      uses: room.game.peekUses[currentSeat],
-      max: room.game.peekMax[currentSeat],
-      sides: [
-        {
-          seat: leftSeat,
-          side: '左侧',
-          name: getSeatPlayerName(room, leftSeat),
-          cards: room.game.hands[leftSeat].map(cloneCard),
-        },
-        {
-          seat: rightSeat,
-          side: '右侧',
-          name: getSeatPlayerName(room, rightSeat),
-          cards: room.game.hands[rightSeat].map(cloneCard),
-        },
-      ],
+      expiresAt: result.expiresAt,
+      uses: result.uses,
+      max: result.max,
+      sides: result.sides,
     });
+    io.to(currentRoom).emit('toast_msg', { msg: `${who} 发动了验牌` });
+    io.to(currentRoom).emit('sound_cue', { type: 'secret' });
 
+    if (result.penalties && result.penalties.length) {
+      for (const item of result.penalties) {
+        const targetName = room.players.find(p => p.seat === item.target)?.name || ('座位' + (item.target + 1));
+        if (item.ok) {
+          io.to(currentRoom).emit('toast_msg', { msg: `${who} 验牌被${targetName}抓中，赔出 ${cardText(item.card)}` });
+          io.to(currentRoom).emit('sound_cue', { type: 'caught' });
+        } else {
+          io.to(currentRoom).emit('toast_msg', { msg: `${who} 验牌被${targetName}抓中，但${item.msg.replace(/^.*?没有/, '没有')}` });
+        }
+      }
+    }
+
+    if (maybeGameOver(room.game)) return finishGame(room);
     broadcastState(room);
   });
 
