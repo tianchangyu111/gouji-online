@@ -1,0 +1,1 @@
+把你的两张照片重命名为 joker-big.jpg 和 joker-small.jpg 后放到这个文件夹。

@@ -16,6 +16,7 @@
   --gold: #d4a843;
   --gold-light: #f0d080;
   --red: #cc2222;
+  --bottom-panel-h: 230px;
 }
 
 body {
@@ -287,12 +288,12 @@ body {
 }
 
 /* 6 positions around table (relative seat from my view) */
-.plabel.pos-0 { bottom: 120px; left: 50%; transform: translateX(-50%); }
-.plabel.pos-1 { bottom: 30%; right: 10px; align-items: flex-end; }
-.plabel.pos-2 { top: 22%; right: 10px; align-items: flex-end; }
-.plabel.pos-3 { top: 6px; left: 50%; transform: translateX(-50%); }
-.plabel.pos-4 { top: 22%; left: 10px; align-items: flex-start; }
-.plabel.pos-5 { bottom: 30%; left: 10px; align-items: flex-start; }
+.plabel.pos-0 { bottom: calc(var(--bottom-panel-h) - 8px); left: 50%; transform: translateX(-50%); }
+.plabel.pos-1 { bottom: 34%; right: 12px; align-items: flex-end; }
+.plabel.pos-2 { top: 19%; right: 12px; align-items: flex-end; }
+.plabel.pos-3 { top: 10px; left: 50%; transform: translateX(-50%); }
+.plabel.pos-4 { top: 19%; left: 12px; align-items: flex-start; }
+.plabel.pos-5 { bottom: 34%; left: 12px; align-items: flex-start; }
 
 /* Played cards area per position */
 .played-area {
@@ -303,50 +304,83 @@ body {
   align-items: center;
 }
 
-.played-area.ppos-0 { bottom: 36%; left: 50%; transform: translateX(-50%); }
-.played-area.ppos-1 { bottom: 32%; right: 18%; }
-.played-area.ppos-2 { top: 28%; right: 18%; }
-.played-area.ppos-3 { top: 36%; left: 50%; transform: translateX(-50%); }
-.played-area.ppos-4 { top: 28%; left: 18%; }
-.played-area.ppos-5 { bottom: 32%; left: 18%; }
+.played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 62px); left: 50%; transform: translateX(-50%); }
+.played-area.ppos-1 { bottom: 34%; right: 19%; }
+.played-area.ppos-2 { top: 26%; right: 19%; }
+.played-area.ppos-3 { top: 34%; left: 50%; transform: translateX(-50%); }
+.played-area.ppos-4 { top: 26%; left: 19%; }
+.played-area.ppos-5 { bottom: 34%; left: 19%; }
 
 /* Cards */
 .card {
-  width: 44px; height: 62px;
+  width: 58px; height: 82px;
   background: #fff;
-  border-radius: 4px;
-  border: 1px solid #aaa;
+  border-radius: 9px;
+  border: 1px solid rgba(0,0,0,0.18);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700;
+  font-size: 16px; font-weight: 800;
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
-  box-shadow: 1px 2px 3px rgba(0,0,0,0.3);
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .card.red { color: var(--red); }
 .card.black { color: #222; }
-.card.joker-big { background: linear-gradient(135deg, #ff4444, #ff8800); color: #fff; }
-.card.joker-small { background: linear-gradient(135deg, #2244aa, #44aaff); color: #fff; }
-.card .rank { font-size: 12px; line-height: 1; }
-.card .suit { font-size: 14px; line-height: 1; }
+.card.joker-big,
+.card.joker-small { color: #fff; border-color: rgba(255,255,255,0.25); }
+.card .rank { font-size: 16px; line-height: 1; z-index: 2; }
+.card .suit { font-size: 18px; line-height: 1; z-index: 2; margin-top: 4px; }
+.card .joker-face {
+  position: absolute; inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.05) contrast(1.05);
+}
+.card .joker-face.big {
+  background-image:
+    linear-gradient(135deg, rgba(255,77,43,0.68), rgba(255,146,51,0.48)),
+    url('/assets/joker-big.jpg');
+}
+.card .joker-face.small {
+  background-image:
+    linear-gradient(135deg, rgba(44,91,255,0.68), rgba(89,209,255,0.44)),
+    url('/assets/joker-small.jpg');
+}
+.card .joker-text {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  z-index: 2;
+  font-size: 11px;
+  font-family: 'Ma Shan Zheng', cursive;
+  letter-spacing: 1px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.38);
+  backdrop-filter: blur(2px);
+}
 
 .card.selected {
-  transform: translateY(-16px);
-  box-shadow: 0 6px 16px rgba(212,168,67,0.5);
+  transform: translateY(-12px);
+  box-shadow: 0 8px 18px rgba(212,168,67,0.45);
   border-color: var(--gold);
 }
 
-.card:active { transform: translateY(-16px); }
+.card:active { transform: translateY(-12px); }
 
 /* Mini cards in played area */
 .played-area .card {
-  width: 34px; height: 48px;
-  font-size: 10px; cursor: default;
+  width: 42px; height: 60px;
+  font-size: 11px; cursor: default;
+  border-radius: 7px;
 }
-.played-area .card .rank { font-size: 9px; }
-.played-area .card .suit { font-size: 11px; }
+.played-area .card .rank { font-size: 11px; }
+.played-area .card .suit { font-size: 12px; margin-top: 2px; }
+.played-area .card .joker-text { font-size: 8px; left: 3px; bottom: 3px; padding: 1px 4px; }
 .played-area .card.selected { transform: none; }
 
 .gouji-tag {
@@ -418,59 +452,69 @@ body {
   color: #1a1a1a; border: none; border-radius: 8px; cursor: pointer;
 }
 
-/* My hand */
-#my-hand {
+/* Bottom interaction panel */
+#bottom-panel {
   position: absolute;
-  bottom: 10px;
-  left: 50%; transform: translateX(-50%);
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(1500px, 98vw);
+  min-height: var(--bottom-panel-h);
+  z-index: 28;
+  background: linear-gradient(to bottom, rgba(10,25,18,0.78), rgba(6,16,12,0.92));
+  border: 1px solid rgba(212,168,67,0.16);
+  border-bottom: none;
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  box-shadow: 0 -10px 35px rgba(0,0,0,0.28);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  z-index: 10;
-  max-width: 98vw;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.card-group {
+#panel-top {
   display: flex;
-  align-items: flex-end;
-  position: relative;
-  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
 }
 
-.group-count {
-  position: absolute;
-  bottom: -7px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.7);
-  color: var(--gold-light);
-  font-size: 10px;
-  padding: 0 5px;
-  border-radius: 6px;
+#turn-timer {
+  color: #fff;
   font-family: 'Ma Shan Zheng', cursive;
-  pointer-events: none;
-  border: 1px solid rgba(212,168,67,0.3);
-  z-index: 11;
+  font-size: 22px;
+  background: rgba(0,0,0,0.38);
+  padding: 5px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(212,168,67,0.25);
+  white-space: nowrap;
 }
 
-/* Action buttons */
+#panel-meta {
+  color: rgba(255,255,255,0.82);
+  font-size: 13px;
+  text-align: right;
+  line-height: 1.5;
+}
+
 #actions {
-  position: absolute;
-  bottom: 86px;
-  left: 50%; transform: translateX(-50%);
+  position: static;
+  transform: none;
   display: flex;
   gap: 10px;
   z-index: 20;
   flex-wrap: wrap;
   justify-content: center;
-  max-width: 92vw;
 }
 
 #actions button {
-  padding: 7px 20px;
-  font-size: 16px;
+  padding: 9px 22px;
+  min-width: 90px;
+  font-size: 18px;
   font-family: 'Ma Shan Zheng', cursive;
-  border-radius: 8px;
+  border-radius: 11px;
   cursor: pointer;
   letter-spacing: 3px;
   border: 2px solid var(--gold);
@@ -482,28 +526,62 @@ body {
   color: #1a1a1a;
 }
 .btn-no {
-  background: rgba(0,0,0,0.4);
+  background: rgba(0,0,0,0.42);
   color: var(--gold);
 }
 .btn-special {
-  background: rgba(20,20,20,0.7);
+  background: rgba(20,20,20,0.76);
   color: #f0d080;
+}
+.btn-alert {
+  background: linear-gradient(to bottom, #f06d4b, #bf4022);
+  color: #fff7e8;
+  border-color: #ffb28d !important;
 }
 button:disabled { opacity: 0.3; cursor: default !important; }
 
-#turn-timer {
+#my-hand-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+#my-hand {
+  position: static;
+  transform: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  z-index: 10;
+  width: max-content;
+  min-width: 100%;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  padding: 4px 4px 14px;
+}
+
+.card-group {
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+  flex-shrink: 0;
+  min-height: 98px;
+}
+
+.group-count {
   position: absolute;
-  bottom: 140px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 21;
-  color: #fff;
+  bottom: -8px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.76);
+  color: var(--gold-light);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
   font-family: 'Ma Shan Zheng', cursive;
-  font-size: 18px;
-  background: rgba(0,0,0,0.45);
-  padding: 4px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(212,168,67,0.25);
+  pointer-events: none;
+  border: 1px solid rgba(212,168,67,0.3);
+  z-index: 11;
 }
 
 #my-meta {
@@ -513,6 +591,28 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   color: #ddd;
   font-size: 11px;
   line-height: 1.5;
+}
+
+@media (max-width: 960px) {
+  :root { --bottom-panel-h: 260px; }
+  .card { width: 50px; height: 72px; }
+  .card .rank { font-size: 14px; }
+  .card .suit { font-size: 15px; }
+  #turn-timer { font-size: 18px; }
+  #actions button { min-width: 78px; padding: 8px 14px; font-size: 16px; letter-spacing: 2px; }
+  .played-area .card { width: 36px; height: 52px; }
+  .plabel.pos-1, .plabel.pos-2 { right: 4px; }
+  .plabel.pos-4, .plabel.pos-5 { left: 4px; }
+}
+
+@media (max-width: 640px) {
+  :root { --bottom-panel-h: 282px; }
+  #bottom-panel { width: 100vw; border-radius: 18px 18px 0 0; padding-left: 10px; padding-right: 10px; }
+  #panel-top { align-items: flex-start; flex-direction: column; }
+  #panel-meta { text-align: left; }
+  #actions { justify-content: flex-start; }
+  .card { width: 46px; height: 68px; border-radius: 8px; }
+  .card-group { min-height: 90px; }
 }
 
 /* Rankings */
@@ -582,6 +682,64 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   cursor: pointer;
   letter-spacing: 4px;
 }
+
+#peek-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.72);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 130;
+}
+#peek-overlay.show { display: flex; }
+#peek-box {
+  width: min(1100px, 94vw);
+  background: linear-gradient(to bottom, rgba(16,28,20,0.96), rgba(8,14,10,0.98));
+  border: 1px solid rgba(212,168,67,0.25);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+}
+#peek-box h3 {
+  color: var(--gold-light);
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 26px;
+  letter-spacing: 4px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.peek-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 14px;
+}
+.peek-side {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(212,168,67,0.12);
+  border-radius: 14px;
+  padding: 12px;
+}
+.peek-side-title {
+  color: #fff;
+  font-size: 16px;
+  margin-bottom: 10px;
+  font-family: 'Ma Shan Zheng', cursive;
+}
+.peek-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.peek-note {
+  color: rgba(255,255,255,0.65);
+  text-align: center;
+  margin-top: 12px;
+  font-size: 13px;
+}
+@media (max-width: 780px) {
+  .peek-grid { grid-template-columns: 1fr; }
+}
+
 </style>
 </head>
 <body>
@@ -612,30 +770,33 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 <div id="game">
   <div id="game-title" onclick="onTitleClick()">够级</div>
 
-  <!-- Player labels (filled dynamically) -->
   <div id="player-labels"></div>
-
-  <!-- Played cards areas -->
   <div id="played-areas"></div>
 
-  <!-- My hand -->
-  <div id="my-hand"></div>
-
-  <!-- Actions -->
-  <div id="turn-timer">倒计时：--</div>
-
-  <div id="actions">
-    <button class="btn-go" id="btn-play" onclick="doPlay()" disabled>出 牌</button>
-    <button class="btn-no" id="btn-pass" onclick="doPass()" disabled>过 牌</button>
-    <button class="btn-special" id="btn-naoji" onclick="doNaoji()" disabled>孬 急</button>
-    <button class="btn-special" id="btn-grab" onclick="doGrab()" disabled>抓</button>
-  </div>
-
-  <!-- Rankings -->
   <div id="rankings-panel">
     <h4>排名</h4>
     <div id="rank-list"></div>
     <div id="my-meta"></div>
+  </div>
+
+  <div id="bottom-panel">
+    <div id="panel-top">
+      <div id="turn-timer">倒计时：--</div>
+      <div id="panel-meta">把自己的照片命名为 joker-big.jpg / joker-small.jpg 放到 public/assets</div>
+    </div>
+
+    <div id="actions">
+      <button class="btn-go" id="btn-play" onclick="doPlay()" disabled>出 牌</button>
+      <button class="btn-alert" id="btn-callgong" onclick="doCallGong()" style="display:none" disabled>叫 贡 4</button>
+      <button class="btn-no" id="btn-pass" onclick="doPass()" disabled>过 牌</button>
+      <button class="btn-special" id="btn-naoji" onclick="doNaoji()" disabled>孬 急</button>
+      <button class="btn-special" id="btn-grab" onclick="doGrab()" disabled>抓</button>
+      <button class="btn-special" id="btn-peek" onclick="doPeek()" style="display:none" disabled>验 牌</button>
+    </div>
+
+    <div id="my-hand-wrap">
+      <div id="my-hand"></div>
+    </div>
   </div>
 </div>
 
@@ -647,6 +808,15 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   <h3 id="tribute-title">进贡/买三</h3>
   <div id="tribute-content"></div>
   <button onclick="closeTribute()">确 定</button>
+</div>
+
+
+<div id="peek-overlay">
+  <div id="peek-box">
+    <h3>我要验牌</h3>
+    <div class="peek-grid" id="peek-grid"></div>
+    <div class="peek-note">3秒后自动关闭</div>
+  </div>
 </div>
 
 <!-- Game over -->
@@ -714,8 +884,10 @@ function connect() {
 
   socket.on('back_to_lobby', (data) => {
     document.getElementById('gameover').classList.remove('show');
+  hidePeekOverlay();
     document.getElementById('game').style.display = 'none';
     document.getElementById('waiting').style.display = 'flex';
+    hidePeekOverlay();
     renderPlayerList(data.players);
   });
 
@@ -725,6 +897,10 @@ function connect() {
 
   socket.on('toast_msg', (data) => {
     if (data && data.msg) toast(data.msg);
+  });
+
+  socket.on('peek_result', (data) => {
+    showPeekOverlay(data);
   });
 
   socket.on('cheat_status', (data) => {
@@ -810,6 +986,7 @@ function showGame(state) {
   document.getElementById('waiting').style.display = 'none';
   document.getElementById('game').style.display = 'block';
   document.getElementById('gameover').classList.remove('show');
+  hidePeekOverlay();
 
   renderLabels(state);
   renderPlayedAreas(state);
@@ -818,11 +995,21 @@ function showGame(state) {
 
   const isMyTurn = state.currentPlayer === state.mySeat && !state.finished[state.mySeat];
   const hasTable = !!state.tablePlay;
+  const isKaiDianTurn = state.canKaiDian === state.mySeat && !state.finished[state.mySeat];
   document.getElementById('btn-play').disabled = !isMyTurn;
-  document.getElementById('btn-pass').disabled = !isMyTurn || !hasTable;
+  document.getElementById('btn-pass').disabled = !isMyTurn || (!hasTable && !isKaiDianTurn);
   document.getElementById('btn-naoji').disabled = state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]);
   document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
+  document.getElementById('btn-callgong').style.display = isKaiDianTurn ? '' : 'none';
+  document.getElementById('btn-callgong').disabled = !isKaiDianTurn;
+  document.getElementById('btn-peek').style.display = state.canPeek ? '' : 'none';
+  document.getElementById('btn-peek').disabled = !state.canPeek || state.finished[state.mySeat];
   renderTimer(state);
+
+  const panelMeta = document.getElementById('panel-meta');
+  if (panelMeta) {
+    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${state.canPeek ? '　|　你可使用验牌' : ''}`;
+  }
 
   const goBtn = document.getElementById('go-btn');
   goBtn.style.display = isHost ? '' : 'none';
@@ -866,6 +1053,9 @@ function renderLabels(state) {
     if (state.openedDian && state.openedDian[abs]) {
       dianHtml = '<span class="dian-badge dian-open">已开点</span>';
     }
+    if (state.calledTributeSeats && state.calledTributeSeats[abs]) {
+      dianHtml += '<span class="dian-badge dian-closed">下局叫贡</span>';
+    }
 
     let statusHtml = '';
     if (state.finished[abs]) {
@@ -908,6 +1098,8 @@ function renderPlayedAreas(state) {
       act.cards.forEach(c => { content += cardHTML(c, true); });
       if (act.isKaiDian) {
         content += '<span class="kaidian-tag">开 点 !</span>';
+      } else if (act.isCallGong) {
+        content += '<span class="kaidian-tag" style="color:#ffd6c6;background:rgba(240,109,75,0.18);border-color:rgba(255,178,141,0.4)">叫 贡 4</span>';
       } else if (isGoujiPlayClient(act.cards)) {
         content += '<span class="gouji-tag">够级</span>';
       }
@@ -940,7 +1132,7 @@ function renderMyHand(state) {
   groups.forEach(group => {
     const groupEl = document.createElement('div');
     groupEl.className = 'card-group';
-    const ov = group.cards.length <= 4 ? 16 : 12;
+    const ov = group.cards.length <= 4 ? 18 : 14;
 
     let isLocked = false;
     if (isKaiDianTurn) {
@@ -951,7 +1143,7 @@ function renderMyHand(state) {
 
     group.cards.forEach((card, idx) => {
       const el = createCardEl(card);
-      if (idx > 0) el.style.marginLeft = (-44 + ov) + 'px';
+      if (idx > 0) el.style.marginLeft = (-58 + ov) + 'px';
       if (selectedCards.some(c => c.id === card.id)) el.classList.add('selected');
       if (isLocked) el.classList.add('locked');
 
@@ -1005,7 +1197,8 @@ function renderRankings(state) {
   if (myMeta) {
     const used = state.naojiUses?.[state.mySeat] ?? 0;
     const max = state.naojiMax?.[state.mySeat] ?? 5;
-    myMeta.innerHTML = `孬急：${used}/${max}<br>已出牌池：${state.playedPoolCount || 0}张`;
+    const canPeekTxt = state.canPeek ? '<br>特权：我要验牌（张哲）' : '';
+    myMeta.innerHTML = `孬急：${used}/${max}${canPeekTxt}`;
   }
 }
 
@@ -1015,10 +1208,10 @@ function createCardEl(card) {
   el.className = 'card';
   if (card.rank === 17) {
     el.classList.add('joker-big');
-    el.innerHTML = '<span class="rank">大</span><span class="suit">王</span>';
+    el.innerHTML = '<div class="joker-face big"></div><span class="joker-text">大王</span>';
   } else if (card.rank === 16) {
     el.classList.add('joker-small');
-    el.innerHTML = '<span class="rank">小</span><span class="suit">王</span>';
+    el.innerHTML = '<div class="joker-face small"></div><span class="joker-text">小王</span>';
   } else {
     el.classList.add(SUIT_COLORS[card.suit]);
     el.innerHTML = `<span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`;
@@ -1029,8 +1222,8 @@ function createCardEl(card) {
 function cardHTML(card, mini) {
   let cls = 'card';
   let inner = '';
-  if (card.rank === 17) { cls += ' joker-big'; inner = '<span class="rank">大</span><span class="suit">王</span>'; }
-  else if (card.rank === 16) { cls += ' joker-small'; inner = '<span class="rank">小</span><span class="suit">王</span>'; }
+  if (card.rank === 17) { cls += ' joker-big'; inner = '<div class="joker-face big"></div><span class="joker-text">大王</span>'; }
+  else if (card.rank === 16) { cls += ' joker-small'; inner = '<div class="joker-face small"></div><span class="joker-text">小王</span>'; }
   else { cls += ' ' + SUIT_COLORS[card.suit]; inner = `<span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`; }
   return `<div class="${cls}">${inner}</div>`;
 }
@@ -1075,7 +1268,13 @@ function toggleGroupSelect(cards) {
 
 function doPlay() {
   if (selectedCards.length === 0) { toast('请先选牌'); return; }
-  socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id) });
+  socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal' });
+  selectedCards = [];
+}
+
+function doCallGong() {
+  if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
+  socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'callgong' });
   selectedCards = [];
 }
 
@@ -1083,7 +1282,6 @@ function doPass() {
   socket.emit('pass');
   selectedCards = [];
 }
-
 
 function renderTimer(state) {
   const el = document.getElementById('turn-timer');
@@ -1108,6 +1306,10 @@ function doNaoji() {
 
 function doGrab() {
   socket.emit('grab');
+}
+
+function doPeek() {
+  socket.emit('peek_neighbors');
 }
 
 // ============ GAME OVER ============
@@ -1148,6 +1350,30 @@ function showGameOver(data) {
   document.getElementById('gameover').classList.add('show');
 }
 
+
+let peekTimer = null;
+
+function showPeekOverlay(data) {
+  const grid = document.getElementById('peek-grid');
+  const overlay = document.getElementById('peek-overlay');
+  if (!grid || !overlay || !data?.sides) return;
+
+  grid.innerHTML = data.sides.map(side => `
+    <div class="peek-side">
+      <div class="peek-side-title">${side.side} · ${side.name}（${side.cards.length}张）</div>
+      <div class="peek-cards">${side.cards.map(card => cardHTML(card, true)).join('')}</div>
+    </div>
+  `).join('');
+
+  overlay.classList.add('show');
+  clearTimeout(peekTimer);
+  const delay = Math.max(500, (data.expiresAt || (Date.now() + 3000)) - Date.now());
+  peekTimer = setTimeout(hidePeekOverlay, delay);
+}
+
+function hidePeekOverlay() {
+  document.getElementById('peek-overlay')?.classList.remove('show');
+}
 
 function showTributeOverlay(state, tLog, bLog) {
   const overlay = document.getElementById('tribute-overlay');

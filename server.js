@@ -16,6 +16,10 @@ const TEAM_B = [1, 3, 5];
 
 const rooms = {}; // roomCode -> room data
 
+function getSeatPlayerName(room, seat) {
+  return room?.players?.find(p => p.seat === seat)?.name || ('座位' + (seat + 1));
+}
+
 function generateRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -35,6 +39,7 @@ function createRoom(hostSocketId, hostName) {
     cheatArmed: false,
     nextRoundNumber: 1,
     pendingTribute: null,
+    calledTributeSeats: [false, false, false, false, false, false],
     turnTimer: null,
   };
   return code;
@@ -599,6 +604,18 @@ function computePendingTribute(rankings) {
   ];
 }
 
+function buildRoundTributes(room) {
+  const items = [...(room.pendingTribute || [])];
+  for (let seat = 0; seat < 6; seat++) {
+    if (room.calledTributeSeats?.[seat]) {
+      items.push({ from: (seat + 3) % 6, to: seat, count: 1, type: '叫贡' });
+    }
+  }
+  room.pendingTribute = null;
+  room.calledTributeSeats = [false, false, false, false, false, false];
+  return items;
+}
+
 function applyTribute(hands, pendingTribute) {
   const tributeLog = [];
   if (!pendingTribute || pendingTribute.length === 0) return tributeLog;
@@ -713,10 +730,12 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
 function getStateForPlayer(room, seat) {
   const game = room.game;
   if (!game) return null;
+  const me = room.players.find(pp => pp.seat === seat);
 
   return {
     myHand: game.hands[seat],
     mySeat: seat,
+    myName: me?.name || '',
     handCounts: game.hands.map(h => h.length),
     finished: game.finished,
     rankings: game.rankings,
@@ -726,7 +745,7 @@ function getStateForPlayer(room, seat) {
     goujiPair: game.goujiPair,
     playerActions: game.playerActions,
     players: room.players.map(p => ({ name: p.name, seat: p.seat })),
-    isHost: room.hostId === room.players.find(pp => pp.seat === seat)?.id,
+    isHost: room.hostId === me?.id,
     canKaiDian: game.canKaiDian,
     openedDian: game.openedDian,
     roundNumber: game.roundNumber,
@@ -736,6 +755,8 @@ function getStateForPlayer(room, seat) {
     naojiMax: game.naojiMax || [5,5,5,5,5,5],
     turnEndsAt: game.turnEndsAt || 0,
     playedPoolCount: (game.playedPool || []).length,
+    calledTributeSeats: room.calledTributeSeats || [false, false, false, false, false, false],
+    canPeek: (me?.name || '').trim() === '张哲',
   };
 }
 
@@ -755,7 +776,7 @@ function finishGame(room) {
   });
 }
 
-function processPlay(room, seat, cardIds) {
+function processPlay(room, seat, cardIds, playMode = 'normal') {
   const game = room.game;
   if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完了' };
@@ -765,13 +786,19 @@ function processPlay(room, seat, cardIds) {
   if (cards.length !== cardIds.length) return { ok: false, msg: '无效的牌' };
 
   if (game.canKaiDian === seat) {
-    if (!cards.every(c => c.rank === 4)) return { ok: false, msg: '现在只能出4开点' };
-    if (!allFoursSelectedIfKaiDian(hand, cards)) return { ok: false, msg: '开点时必须把手里所有4一起打出' };
+    if (!cards.every(c => c.rank === 4)) return { ok: false, msg: '现在只能出4' };
+    if (!allFoursSelectedIfKaiDian(hand, cards)) return { ok: false, msg: '现在必须把手里所有4一起打出' };
+
+    const isCallGong = playMode === 'callgong';
 
     game.hands[seat] = removeCardsByIds(hand, cardIds);
     game.playedPool.push(...cards.map(cloneCard));
-    game.playerActions[seat] = { type: 'play', cards: [...cards], isKaiDian: true };
-    game.openedDian[seat] = true;
+    game.playerActions[seat] = { type: 'play', cards: [...cards], isKaiDian: !isCallGong, isCallGong };
+    if (isCallGong) {
+      room.calledTributeSeats[seat] = true;
+    } else {
+      game.openedDian[seat] = true;
+    }
     maybeFinishPlayer(game, seat);
 
     if (maybeGameOver(game)) return { ok: true, gameOver: true };
@@ -914,7 +941,7 @@ io.on('connection', (socket) => {
     const cheatSeat = room.cheatArmed ? room.players.find(p => p.id === room.hostId)?.seat ?? -1 : -1;
     const hands = deal(cheatSeat);
 
-    const tributeLog = applyTribute(hands, room.pendingTribute);
+    const tributeLog = applyTribute(hands, buildRoundTributes(room));
     const buySanLog = applyBuyThree(hands);
 
     const firstPlayer = cheatSeat >= 0 ? cheatSeat : Math.floor(Math.random() * 6);
@@ -926,10 +953,10 @@ io.on('connection', (socket) => {
     scheduleTurnTimer(room);
   });
 
-  socket.on('play_cards', ({ cardIds }) => {
+  socket.on('play_cards', ({ cardIds, mode }) => {
     const room = rooms[currentRoom];
     if (!room || !room.game) return;
-    const result = processPlay(room, currentSeat, cardIds || []);
+    const result = processPlay(room, currentSeat, cardIds || [], mode || 'normal');
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
     if (result.gameOver) return finishGame(room);
     broadcastState(room);
@@ -995,6 +1022,39 @@ io.on('connection', (socket) => {
 
     if (maybeGameOver(room.game)) return finishGame(room);
     broadcastState(room);
+  });
+
+  socket.on('peek_neighbors', () => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const me = room.players.find(p => p.seat === currentSeat);
+    if ((me?.name || '').trim() !== '张哲') {
+      return socket.emit('error_msg', { msg: '只有张哲可以使用验牌' });
+    }
+    if (room.game.finished[currentSeat]) {
+      return socket.emit('error_msg', { msg: '你已经出完了，不能再验牌' });
+    }
+
+    const leftSeat = (currentSeat + 5) % 6;
+    const rightSeat = (currentSeat + 1) % 6;
+
+    socket.emit('peek_result', {
+      expiresAt: Date.now() + 3000,
+      sides: [
+        {
+          seat: leftSeat,
+          side: '左侧',
+          name: getSeatPlayerName(room, leftSeat),
+          cards: room.game.hands[leftSeat].map(cloneCard),
+        },
+        {
+          seat: rightSeat,
+          side: '右侧',
+          name: getSeatPlayerName(room, rightSeat),
+          cards: room.game.hands[rightSeat].map(cloneCard),
+        },
+      ],
+    });
   });
 
   socket.on('cheat_toggle', () => {
