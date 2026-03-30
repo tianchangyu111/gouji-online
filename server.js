@@ -82,6 +82,7 @@ function createRoom(hostSocketId, hostName) {
     forceKaiDianNextRound: [false,false,false,false,false,false],
     forceKaiDianThisRound: [false,false,false,false,false,false],
     nextStarterSeat: -1,
+    returnTimer: null,
   };
   return code;
 }
@@ -229,13 +230,35 @@ function applyNaojiPenalty(room, fromSeat, toSeat) {
 
 function chooseTimeoutLeadIds(game, seat) {
   const hand = [...game.hands[seat]].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit);
+  const byRankIds = (rank) => hand.filter(c => c.rank === rank).map(c => c.id);
+
   if (game.activeBurns?.[seat]) {
     const jokers = hand.filter(c => c.rank >= 16);
-    if (jokers.length > 0) return [jokers[0].id];
+    if (jokers.length === 0) return [];
+
+    const normalLead = hand.find(c => c.rank >= 4 && c.rank <= 14);
+    if (normalLead) {
+      return [...byRankIds(normalLead.rank), jokers[0].id];
+    }
+
+    if (jokers.length > 0) {
+      const same = hand.filter(c => c.rank === jokers[0].rank).map(c => c.id);
+      return same.length ? same : [jokers[0].id];
+    }
+
+    const threes = hand.filter(c => c.rank === 3);
+    if (threes.length > 0 && threes.length === hand.length) {
+      const check = canPlayFinalThree(game, seat, threes, []);
+      if (check.ok) return threes.map(c => c.id);
+    }
     return [];
   }
-  const non34 = hand.filter(c => c.rank !== 3 && c.rank !== 4);
-  if (non34.length > 0) return [non34[0].id];
+
+  const firstLead = hand.find(c => c.rank !== 3 && c.rank !== 4);
+  if (firstLead) return byRankIds(firstLead.rank);
+
+  const fours = hand.filter(c => c.rank === 4);
+  if (fours.length > 0) return fours.map(c => c.id);
 
   const threes = hand.filter(c => c.rank === 3);
   if (threes.length > 0 && threes.length === hand.length) {
@@ -253,9 +276,64 @@ function clearTurnTimer(room) {
   if (room.game) room.game.turnEndsAt = 0;
 }
 
+function clearReturnTimer(room) {
+  if (room.returnTimer) {
+    clearTimeout(room.returnTimer);
+    room.returnTimer = null;
+  }
+  if (room.game) room.game.returnEndsAt = 0;
+}
+
+function getCurrentReturnTask(game) {
+  if (!game || !Array.isArray(game.returnTasks)) return null;
+  return game.returnTasks.find(t => !t.done) || null;
+}
+
+function finalizeReturnTask(room, task, selectedCards, auto = false) {
+  const game = room.game;
+  if (!game || !task) return false;
+  game.hands[task.owedBy] = removeSpecificCards(game.hands[task.owedBy], selectedCards);
+  const delivered = selectedCards.map(c => ({ ...cloneCard(c), tributeReceived: false }));
+  pushCards(game.hands[task.to], delivered);
+  sortHand(game.hands[task.owedBy]);
+  sortHand(game.hands[task.to]);
+  task.back = delivered.map(cardText);
+  task.done = true;
+  task.auto = !!auto;
+  const item = (game.tributeLog || []).find(x => x.id === task.itemId);
+  if (item) item.back = task.back.slice();
+  clearReturnTimer(room);
+  const nextTask = getCurrentReturnTask(game);
+  if (nextTask) scheduleReturnTimer(room);
+  else scheduleTurnTimer(room);
+  return true;
+}
+
+function handleReturnTimeout(room) {
+  if (!room || !room.game || room.state !== 'playing') return;
+  const game = room.game;
+  const task = getCurrentReturnTask(game);
+  if (!task) return;
+  const chosen = getLowestCards(game.hands[task.owedBy] || [], task.count);
+  finalizeReturnTask(room, task, chosen, true);
+  io.to(room.code).emit('toast_msg', { msg: `${getSeatPlayerName(room, task.owedBy)} 还贡超时，已自动返还最小牌` });
+  broadcastState(room);
+}
+
+function scheduleReturnTimer(room) {
+  clearReturnTimer(room);
+  clearTurnTimer(room);
+  if (!room || !room.game || room.state !== 'playing') return;
+  const task = getCurrentReturnTask(room.game);
+  if (!task) return;
+  room.game.returnEndsAt = Date.now() + 12000;
+  room.returnTimer = setTimeout(() => handleReturnTimeout(room), 12050);
+}
+
 function scheduleTurnTimer(room) {
   clearTurnTimer(room);
   if (!room || !room.game || room.state !== 'playing') return;
+  if (getCurrentReturnTask(room.game)) return;
   ensureTurnSeatValid(room);
   const game = room.game;
   if (game.currentPlayer < 0 || game.finished[game.currentPlayer]) return;
@@ -265,6 +343,7 @@ function scheduleTurnTimer(room) {
 
 function handleTurnTimeout(room) {
   if (!room || !room.game || room.state !== 'playing') return;
+  if (getCurrentReturnTask(room.game)) { scheduleReturnTimer(room); return; }
   const game = room.game;
   const seat = game.currentPlayer;
   const playerName = room.players.find(p => p.seat === seat)?.name || ('座位' + (seat + 1));
@@ -278,6 +357,7 @@ function handleTurnTimeout(room) {
     if (autoIds.length > 0) {
       result = processPlay(room, seat, autoIds);
       io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，已自动出牌` });
+      io.to(room.code).emit('sound_cue', { type: 'play' });
     } else {
       const next = nextActiveSeat(game, seat);
       game.playerActions[seat] = { type: 'timeout' };
@@ -287,16 +367,10 @@ function handleTurnTimeout(room) {
     }
   }
 
-  if (!result || !result.ok) {
-    scheduleTurnTimer(room);
-    return;
-  }
-  if (result.gameOver || maybeGameOver(game)) {
-    finishGame(room);
-    return;
-  }
-  broadcastState(room);
+  if (!result || !result.ok) { scheduleTurnTimer(room); return; }
+  if (result.gameOver || maybeGameOver(game)) { finishGame(room); return; }
   scheduleTurnTimer(room);
+  broadcastState(room);
 }
 
 function processNaoji(room, seat) {
@@ -539,41 +613,19 @@ function deal(cheatSeat = -1, luckySeat = -1) {
 // ============ ANALYZE PLAY ============
 function analyzePlay(cards) {
   if (!cards || cards.length === 0) return null;
-  const counts = {};
-  for (const c of cards) counts[c.rank] = (counts[c.rank] || 0) + 1;
-
-  const bigJ = counts[17] || 0;
-  const smallJ = counts[16] || 0;
-  const twos = counts[15] || 0;
-  const normalRanks = Object.keys(counts).map(Number).filter(r => r >= 3 && r <= 14);
-
-  if (normalRanks.length === 0) {
-    if (twos > 0 && bigJ === 0 && smallJ === 0) {
+  const normals = cards.filter(c => c.rank >= 3 && c.rank <= 15);
+  const twos = cards.filter(c => c.rank === 15).length;
+  const smallJ = cards.filter(c => c.rank === 16).length;
+  const bigJ = cards.filter(c => c.rank === 17).length;
+  if (normals.length === 0) {
+    if (twos > 0 && smallJ === 0 && bigJ === 0) {
       return { count: cards.length, baseRank: 15, baseCount: twos, coreCount: twos, flowerCount: 0, hasJoker: false, bigJokers: 0, smallJokers: 0, twos };
     }
-    if ((bigJ + smallJ) > 0 && twos === 0) {
-      return { count: cards.length, baseRank: bigJ > 0 ? 17 : 16, baseCount: 0, coreCount: bigJ + smallJ, flowerCount: 0, hasJoker: true, jokerLevel: bigJ > 0 ? 17 : 16, bigJokers: bigJ, smallJokers: smallJ, twos: 0 };
-    }
-    return null;
+    return { count: cards.length, baseRank: bigJ > 0 ? 17 : 16, baseCount: 0, coreCount: bigJ + smallJ, flowerCount: 0, hasJoker: true, jokerLevel: bigJ > 0 ? 17 : 16, bigJokers: bigJ, smallJokers: smallJ, twos: 0 };
   }
-
-  if (normalRanks.length !== 1) return null;
-  const baseRank = normalRanks[0];
-  const baseCount = counts[baseRank] || 0;
-  const flowerCount = smallJ + bigJ;
-  const coreCount = baseCount + twos + flowerCount;
-  return {
-    count: cards.length,
-    baseRank,
-    baseCount,
-    coreCount,
-    flowerCount,
-    hasJoker: flowerCount > 0,
-    jokerLevel: bigJ > 0 ? 17 : (smallJ > 0 ? 16 : 0),
-    bigJokers: bigJ,
-    smallJokers: smallJ,
-    twos,
-  };
+  const baseRank = normals[0].rank;
+  if (normals.some(c => c.rank !== baseRank)) return null;
+  return { count: cards.length, baseRank, baseCount: normals.length, coreCount: normals.length, flowerCount: smallJ + bigJ, hasJoker: (smallJ + bigJ) > 0, bigJokers: bigJ, smallJokers: smallJ, twos };
 }
 
 function isValidPlay(cards) {
@@ -615,6 +667,7 @@ function isShaoPlay(cards) {
   if (!a) return false;
   if (a.flowerCount > 0) return true;
   if (a.baseRank >= 16) return true;
+  if (a.baseRank === 15) return true;
   return a.baseCount >= goujiThreshold(a.baseRank);
 }
 
@@ -701,7 +754,7 @@ function canPlayFinalThree(game, seat, cards, remainingAfterPlay) {
 
 function nextActiveSeat(game, fromSeat) {
   for (let i = 1; i <= 6; i++) {
-    const s = (fromSeat + i) % 6;
+    const s = (fromSeat - i + 6) % 6;
     if (!game.finished[s] && !game.passedThisRound.includes(s)) return s;
   }
   return -1;
@@ -742,6 +795,7 @@ function buildBurnQueue(game, attacker) {
 
 function nextBurnResponder(game) {
   if (!game?.isGoujiMode) return -1;
+  if ((activeSeats(game).length || 0) < 5) return game.goujiPair?.[1] ?? -1;
   for (const s of (game.burnQueue || [])) {
     if (!game.finished[s] && !game.passedThisRound.includes(s)) return s;
   }
@@ -814,10 +868,14 @@ function allFoursSelectedIfKaiDian(hand, cards) {
   return all4.length > 0 && cards.length === all4.length && cards.every(c => c.rank === 4);
 }
 
+function isSeatResolvedForPass(game, seat) {
+  return !!game.finished?.[seat] || game.passedThisRound.includes(seat);
+}
+
 function previousTwoPassedForSeat(game, seat, targetPlayer) {
   const p1 = (targetPlayer + 1) % 6;
   const p2 = (targetPlayer + 2) % 6;
-  return game.passedThisRound.includes(p1) && game.passedThisRound.includes(p2) && seat === (targetPlayer + 3) % 6;
+  return isSeatResolvedForPass(game, p1) && isSeatResolvedForPass(game, p2) && seat === (targetPlayer + 3) % 6;
 }
 
 function canLetTeammate(game, seat) {
@@ -851,6 +909,39 @@ function canTriggerKaiDian(game, seat) {
   return true;
 }
 
+function hasPendingUnplayedFourProtection(game, seat) {
+  if (!game || game.finished?.[seat]) return false;
+  if ((activeSeats(game).length || 0) < 5) return false;
+  if (game.openedDian?.[seat]) return false;
+  if (game.lostKaiDian?.[seat]) return false;
+  return countRank(game.hands?.[seat] || [], 4) > 0;
+}
+
+function getBurnOppositeSeat(game, burnerSeat) {
+  if (!game?.activeBurns?.[burnerSeat]) return -1;
+  return (burnerSeat + 3) % 6;
+}
+
+function canVictimFanShao(game, burnerSeat) {
+  const info = game?.activeBurns?.[burnerSeat];
+  if (!info) return false;
+  const victim = info.victim;
+  if (victim < 0 || game.finished[victim]) return false;
+  if (hasPendingUnplayedFourProtection(game, victim)) return false;
+  return true;
+}
+
+function getEligibleRespondersToBurn(game, burnerSeat) {
+  const info = game?.activeBurns?.[burnerSeat];
+  if (!info) return [];
+  const responders = [];
+  const opp = getBurnOppositeSeat(game, burnerSeat);
+  if (opp >= 0 && !game.finished[opp] && !game.passedThisRound.includes(opp)) responders.push(opp);
+  const victim = info.victim;
+  if (canVictimFanShao(game, burnerSeat) && !game.passedThisRound.includes(victim)) responders.push(victim);
+  return responders;
+}
+
 function stabilizeCurrentPlayer(game) {
   if (!game) return;
   if (game.currentPlayer >= 0 && game.finished[game.currentPlayer]) {
@@ -859,7 +950,7 @@ function stabilizeCurrentPlayer(game) {
   }
 }
 
-function resetRound(game, starter, preserveSeat = -1, preserveAction = null) {
+function resetRound(game, starter) {
   game.tablePlay = null;
   game.passedThisRound = [];
   game.isGoujiMode = false;
@@ -871,7 +962,6 @@ function resetRound(game, starter, preserveSeat = -1, preserveAction = null) {
   game.letAwaitingReturn = false;
   game.currentPlayer = starter;
   game.playerActions = [{},{},{},{},{},{}];
-  if (preserveSeat >= 0 && preserveAction) game.playerActions[preserveSeat] = preserveAction;
   return { ok: true, newRound: true };
 }
 
@@ -957,34 +1047,23 @@ function buildRoundTributes(room) {
 
 function applyTribute(hands, pendingTribute) {
   const tributeLog = [];
-  if (!pendingTribute || pendingTribute.length === 0) return tributeLog;
+  const returnTasks = [];
+  if (!pendingTribute || pendingTribute.length === 0) return { tributeLog, returnTasks };
 
   hands.forEach(hand => hand.forEach(card => { delete card.tributeReceived; }));
-
+  let seq = 1;
   for (const item of pendingTribute) {
     const give = getHighestCards(hands[item.from], item.count);
     hands[item.from] = removeSpecificCards(hands[item.from], give);
     const received = give.map(card => ({ ...cloneCard(card), tributeReceived: true }));
     pushCards(hands[item.to], received);
-
-    const back = getLowestCards(hands[item.to], item.count);
-    hands[item.to] = removeSpecificCards(hands[item.to], back);
-    pushCards(hands[item.from], back.map(c => ({ ...cloneCard(c), tributeReceived: false })));
-
     sortHand(hands[item.from]);
     sortHand(hands[item.to]);
-
-    tributeLog.push({
-      type: item.type,
-      from: item.from,
-      to: item.to,
-      count: item.count,
-      give: give.map(cardText),
-      back: back.map(cardText),
-    });
+    const id = `rt_${seq++}`;
+    tributeLog.push({ id, type: item.type, from: item.from, to: item.to, count: item.count, give: give.map(cardText), back: [] });
+    returnTasks.push({ itemId: id, owedBy: item.to, to: item.from, count: item.count, type: item.type, done: false, back: [] });
   }
-
-  return tributeLog;
+  return { tributeLog, returnTasks };
 }
 
 function findThreeProvider(seat, hands) {
@@ -1040,7 +1119,7 @@ function applyBuyThree(hands) {
 }
 
 // ============ GAME STATE ============
-function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySanLog = [], players = []) {
+function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySanLog = [], players = [], returnTasks = []) {
   return {
     hands,
     finished: [false, false, false, false, false, false],
@@ -1075,6 +1154,8 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
     activeNaojiWindows: [],
     naojiWindowSeq: 0,
     turnEndsAt: 0,
+    returnEndsAt: 0,
+    returnTasks: returnTasks || [],
     peekUses: [0,0,0,0,0,0],
     peekMax: [0,0,0,0,0,0].map((_, i) => ((players.find(p => p.seat === i)?.name || '').trim() === '张哲' ? 3 : 0)),
   };
@@ -1085,6 +1166,15 @@ function getStateForPlayer(room, seat) {
   if (!game) return null;
   const me = room.players.find(pp => pp.seat === seat);
 
+  const currentReturnTask = getCurrentReturnTask(game);
+  const prevPlay = game.tablePlay;
+  const burnSourceSeat = (prevPlay && game.activeBurns?.[prevPlay.player]) ? prevPlay.player : -1;
+  const burnEligible = burnSourceSeat >= 0 ? getEligibleRespondersToBurn(game, burnSourceSeat) : [];
+  const canBurnNow = !currentReturnTask && game.currentPlayer === seat && !game.finished[seat] && !!prevPlay && (activeSeats(game).length || 0) >= 5 && (
+    (burnSourceSeat >= 0 && burnEligible.includes(seat) && seat !== getBurnOppositeSeat(game, burnSourceSeat)) ||
+    (burnSourceSeat < 0 && !isResponderOpposite(prevPlay.player, seat) && (prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat)))
+  );
+  const canJieShaoNow = !currentReturnTask && game.currentPlayer === seat && !game.finished[seat] && !!prevPlay && burnSourceSeat >= 0 && seat === getBurnOppositeSeat(game, burnSourceSeat);
   return {
     myHand: game.hands[seat],
     mySeat: seat,
@@ -1123,6 +1213,11 @@ function getStateForPlayer(room, seat) {
     canStrategist: ((me?.name || '').trim() === '陈杰') && !!game.finished[seat] && getRemainingTeammateSeats(game, seat).length > 0,
     strategistTargets: getRemainingTeammateSeats(game, seat),
     canLet: canLetTeammate(game, seat),
+    returnEndsAt: game.returnEndsAt || 0,
+    pendingReturnTask: currentReturnTask && currentReturnTask.owedBy === seat ? currentReturnTask : null,
+    hasPendingReturn: !!currentReturnTask,
+    canBurn: canBurnNow,
+    canJieShao: canJieShaoNow,
   };
 }
 
@@ -1163,6 +1258,7 @@ function settleDianTributes(room) {
 
 function finishGame(room) {
   clearTurnTimer(room);
+  clearReturnTimer(room);
   room.state = 'gameover';
   resolveRoundEffects(room);
   settleDianTributes(room);
@@ -1197,12 +1293,13 @@ function executeFourChoice(room, seat, cards, kind = 'normal4') {
   if (maybeGameOver(game)) return { ok: true, gameOver: true };
   const logs = resolveRoundEffects(room);
   const nextStarter = game.finished[seat] ? activeSeats(game)[0] : seat;
-  const res = resetRound(game, nextStarter, seat, game.playerActions[seat]);
+  const res = resetRound(game, nextStarter);
   return { ...res, roundEffectLogs: logs, autoKind: kind };
 }
 
 function processPlay(room, seat, cardIds, playMode = 'normal') {
   const game = room.game;
+  if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能出牌' };
   if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完了' };
 
@@ -1228,20 +1325,31 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
 
   const prevPlay = game.tablePlay ? { ...game.tablePlay } : null;
   const oppositeOfPrev = prevPlay ? ((prevPlay.player + 3) % 6) : -1;
-  const goujiRestricted = !!prevPlay && prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat);
-  const respondingToBurn = !!prevPlay && !!prevPlay.isShao;
-  const isOppositeResponse = !!prevPlay && seat === oppositeOfPrev;
-  const isBurnResponse = !!prevPlay && !isOppositeResponse && (respondingToBurn || goujiRestricted);
+  const burnActive = !!prevPlay && !!game.activeBurns?.[prevPlay.player];
+  const goujiRestricted = !!prevPlay && activeSeats(game).length >= 5 && prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat);
+  const respondingToBurn = !!prevPlay && burnActive;
+  const burnOppSeat = respondingToBurn ? getBurnOppositeSeat(game, prevPlay.player) : -1;
+  const burnVictimSeat = respondingToBurn ? game.activeBurns[prevPlay.player].victim : -1;
+  const isOppositeResponse = !!prevPlay && respondingToBurn && seat === burnOppSeat;
+  const isVictimFanShao = !!prevPlay && respondingToBurn && seat === burnVictimSeat;
+  const isBurnResponse = !!prevPlay && activeSeats(game).length >= 5 && (
+    (respondingToBurn && isVictimFanShao) ||
+    (!respondingToBurn && !isResponderOpposite(prevPlay.player, seat) && goujiRestricted)
+  );
 
+  if (respondingToBurn && !getEligibleRespondersToBurn(game, prevPlay.player).includes(seat)) {
+    return { ok: false, msg: '当前只能反烧或由对门解烧' };
+  }
   if (prevPlay && !canBeat(cards, prevPlay.cards)) return { ok: false, msg: '压不住！' };
   if (isBurnResponse && !isShaoPlay(cards)) return { ok: false, msg: '现在只能按烧牌规则上牌' };
+  if (respondingToBurn && isVictimFanShao && hasPendingUnplayedFourProtection(game, seat)) return { ok: false, msg: '你还没出4，暂时不能反烧' };
 
   game.hands[seat] = remainingAfterPlay;
   game.playedPool.push(...cards.map(cloneCard));
   if (cards.some(c => c.rank === 4)) game.lostKaiDian[seat] = true;
 
   const pureGouji = isPureGoujiPlay(cards);
-  const triggersGouji = isGoujiPlay(cards) && useGoujiRestrictions(game, seat, (seat + 3) % 6);
+  const triggersGouji = isGoujiPlay(cards) && activeSeats(game).length >= 5 && useGoujiRestrictions(game, seat, (seat + 3) % 6);
   const isShao = isBurnResponse;
   const isJieShao = respondingToBurn && isOppositeResponse;
 
@@ -1284,8 +1392,27 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   maybeFinishPlayer(game, seat, room);
   if (maybeGameOver(game)) return { ok: true, gameOver: true };
 
+  if (game.activeBurns?.[seat]) {
+    const responders = getEligibleRespondersToBurn(game, seat).filter(s => !game.finished[s]);
+    if (responders.length > 0) {
+      game.currentPlayer = responders[0];
+      return { ok: true };
+    }
+    const starter = game.finished[seat] ? (activeSeats(game)[0] ?? -1) : seat;
+    const logs = resolveRoundEffects(room);
+    const res = resetRound(game, starter);
+    return { ...res, roundEffectLogs: logs };
+  }
+
   if (triggersGouji && !game.finished[seat]) {
     const duiTou = (seat + 3) % 6;
+    if (hasPendingUnplayedFourProtection(game, duiTou)) {
+      game.playerActions[duiTou] = { type: 'pass', autoSkip: true };
+      const logs = resolveRoundEffects(room);
+      const starter = game.finished[seat] ? (activeSeats(game)[0] ?? -1) : seat;
+      const res = resetRound(game, starter);
+      return { ...res, roundEffectLogs: logs };
+    }
     if (!game.finished[duiTou]) {
       game.isGoujiMode = true;
       game.goujiPair = [seat, duiTou];
@@ -1317,6 +1444,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
 
 function processPass(room, seat) {
   const game = room.game;
+  if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能过牌' };
   if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
 
   if (game.canKaiDian === seat) {
@@ -1332,6 +1460,19 @@ function processPass(room, seat) {
 
   game.passedThisRound.push(seat);
   game.playerActions[seat] = { type: 'pass' };
+
+  if (game.tablePlay && game.activeBurns?.[game.tablePlay.player]) {
+    const burnerSeat = game.tablePlay.player;
+    const responders = getEligibleRespondersToBurn(game, burnerSeat).filter(s => !game.finished[s]);
+    if (responders.length > 0) {
+      game.currentPlayer = responders[0];
+      return { ok: true };
+    }
+    const starter = game.finished[burnerSeat] ? (activeSeats(game)[0] ?? -1) : burnerSeat;
+    const logs = resolveRoundEffects(room);
+    const res = resetRound(game, starter);
+    return { ...res, roundEffectLogs: logs };
+  }
 
   if (game.isGoujiMode) {
     const opposite = game.goujiPair[1];
@@ -1396,6 +1537,7 @@ function processPass(room, seat) {
 
 function processLet(room, seat) {
   const game = room.game;
+  if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能让牌' };
   if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
   if (!canLetTeammate(game, seat)) return { ok: false, msg: '当前不能让牌' };
   game.passedThisRound.push(seat);
@@ -1458,19 +1600,36 @@ io.on('connection', (socket) => {
     const luckySeat = getLuckyBoostSeat(room.players);
     const hands = deal(cheatSeat, luckySeat);
 
-    const tributeLog = applyTribute(hands, buildRoundTributes(room));
+    const tributeRes = applyTribute(hands, buildRoundTributes(room));
+    const tributeLog = tributeRes.tributeLog;
     const buySanLog = applyBuyThree(hands);
 
     const firstPlayer = (room.nextStarterSeat >= 0 && room.nextStarterSeat < 6)
       ? room.nextStarterSeat
       : (cheatSeat >= 0 ? cheatSeat : Math.floor(Math.random() * 6));
-    room.game = createGameState(hands, firstPlayer, room.nextRoundNumber++, tributeLog, buySanLog, room.players);
+    room.game = createGameState(hands, firstPlayer, room.nextRoundNumber++, tributeLog, buySanLog, room.players, tributeRes.returnTasks);
     room.game.forceKaiDianThisRound = [...(room.forceKaiDianThisRound || [false,false,false,false,false,false])];
     room.state = 'playing';
     room.cheatArmed = false;
 
+    if (getCurrentReturnTask(room.game)) scheduleReturnTimer(room);
+    else scheduleTurnTimer(room);
     broadcastState(room);
-    scheduleTurnTimer(room);
+  });
+
+  socket.on('return_tribute', ({ cardIds }) => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const task = getCurrentReturnTask(room.game);
+    if (!task) return socket.emit('error_msg', { msg: '当前无需还贡' });
+    if (task.owedBy !== currentSeat) return socket.emit('error_msg', { msg: '现在不是你还贡' });
+    const hand = room.game.hands[currentSeat] || [];
+    const cards = takeCardsByIds(hand, cardIds || []);
+    if (cards.length !== task.count) return socket.emit('error_msg', { msg: `请选择${task.count}张牌返还` });
+    if (cards.some(c => c.tributeReceived)) return socket.emit('error_msg', { msg: '收到的贡牌本局不能再被进贡/还贡' });
+    finalizeReturnTask(room, task, cards, false);
+    io.to(currentRoom).emit('toast_msg', { msg: `${getSeatPlayerName(room, currentSeat)} 已完成还贡` });
+    broadcastState(room);
   });
 
   socket.on('play_cards', ({ cardIds, mode }) => {
@@ -1479,8 +1638,9 @@ io.on('connection', (socket) => {
     const result = processPlay(room, currentSeat, cardIds || [], mode || 'normal');
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
     if (result.gameOver) return finishGame(room);
-    broadcastState(room);
+    io.to(currentRoom).emit('sound_cue', { type: 'play' });
     scheduleTurnTimer(room);
+    broadcastState(room);
   });
 
   socket.on('pass', () => {
@@ -1488,8 +1648,8 @@ io.on('connection', (socket) => {
     if (!room || !room.game) return;
     const result = processPass(room, currentSeat);
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
-    broadcastState(room);
     scheduleTurnTimer(room);
+    broadcastState(room);
   });
 
   socket.on('let_teammate', () => {
@@ -1497,8 +1657,8 @@ io.on('connection', (socket) => {
     if (!room || !room.game) return;
     const result = processLet(room, currentSeat);
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
-    broadcastState(room);
     scheduleTurnTimer(room);
+    broadcastState(room);
   });
 
   socket.on('naoji', () => {
@@ -1607,6 +1767,7 @@ io.on('connection', (socket) => {
     const room = rooms[currentRoom];
     if (!room || room.hostId !== socket.id) return;
     clearTurnTimer(room);
+    clearReturnTimer(room);
     room.state = 'waiting';
     room.game = null;
     const playerList = room.players.map(p => ({ name: p.name, seat: p.seat }));
@@ -1622,6 +1783,7 @@ io.on('connection', (socket) => {
 
     if (room.players.length === 0) {
       clearTurnTimer(room);
+      clearReturnTimer(room);
       delete rooms[currentRoom];
       return;
     }

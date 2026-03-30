@@ -1,3 +1,4 @@
+
 // ============ CONSTANTS ============
 const RANK_NAMES = {3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A',15:'2',16:'小',17:'大'};
 const SUIT_SYMBOLS = ['♠','♥','♦','♣'];
@@ -59,6 +60,13 @@ function playCaughtSound() {
     { freq: 520, at: 0.00, dur: 0.09, type: 'square' },
     { freq: 390, at: 0.11, dur: 0.11, type: 'square' },
   ], 0.03);
+}
+
+function playCardSound() {
+  playToneSequence([
+    { freq: 660, at: 0.00, dur: 0.04, type: 'triangle' },
+    { freq: 820, at: 0.05, dur: 0.05, type: 'triangle' },
+  ], 0.018);
 }
 
 function speakTurnPrompt() {
@@ -130,11 +138,16 @@ function connect() {
   socket.on('sound_cue', (data) => {
     const t = data?.type || 'secret';
     if (t === 'caught') playCaughtSound();
+    else if (t === 'play') playCardSound();
     else playSecretSound();
   });
 
   socket.on('peek_result', (data) => {
     showPeekOverlay(data);
+  });
+
+  socket.on('strategist_result', (data) => {
+    showStrategistPanel(data);
   });
 
   socket.on('cheat_status', (data) => {
@@ -241,8 +254,8 @@ function showGame(state) {
   document.getElementById('btn-let').disabled = !state.canLet;
   document.getElementById('btn-naoji').disabled = state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]);
   document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
-  document.getElementById('btn-callgong').style.display = isKaiDianTurn ? '' : 'none';
-  document.getElementById('btn-callgong').disabled = !isKaiDianTurn;
+  document.getElementById('btn-callgong').style.display = 'none';
+  document.getElementById('btn-callgong').disabled = true;
   document.getElementById('btn-peek').style.display = (state.peekMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
   document.getElementById('btn-peek').disabled = !state.canPeek || state.finished[state.mySeat];
   document.getElementById('btn-strategist').style.display = state.canStrategist ? '' : 'none';
@@ -262,7 +275,8 @@ function showGame(state) {
     const strategistText = state.canStrategist ? `　|　狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
     const tributeText = `　|　点贡:${state.dianTributeDebt?.[state.mySeat] ?? 0} 烧贡:${state.burnTributeDebt?.[state.mySeat] ?? 0} 闷贡:${state.menTributeDebt?.[state.mySeat] ?? 0}`;
     const letText = state.canLet ? '　|　可让牌' : '';
-    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}`;
+    const phaseText = state.isChaosPhase ? '　|　四人乱缠' : (state.noHeadSeat >= 0 ? `　|　无头：${getPlayerName(state, state.noHeadSeat)}` : '');
+    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}${phaseText}`;
   }
 
   const goBtn = document.getElementById('go-btn');
@@ -301,6 +315,7 @@ function renderLabels(state) {
     let extra = '';
     if (abs === state.mySeat) extra = '(我)';
     else if (isDuiTou) extra = '(对头)';
+    if (state.noHeadSeat === abs) extra += '·无头';
 
     // 开点 badge
     let dianHtml = '';
