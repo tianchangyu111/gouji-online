@@ -45,6 +45,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 const TEAM_A = [0, 2, 4];
 const TEAM_B = [1, 3, 5];
 
+function sameTeam(a, b) {
+  return (TEAM_A.includes(a) && TEAM_A.includes(b)) || (TEAM_B.includes(a) && TEAM_B.includes(b));
+}
+
 const rooms = {}; // roomCode -> room data
 
 function getSeatPlayerName(room, seat) {
@@ -77,6 +81,7 @@ function createRoom(hostSocketId, hostName) {
     dianSkipStreak: [0,0,0,0,0,0],
     forceKaiDianNextRound: [false,false,false,false,false,false],
     forceKaiDianThisRound: [false,false,false,false,false,false],
+    nextStarterSeat: -1,
   };
   return code;
 }
@@ -85,12 +90,15 @@ function createRoom(hostSocketId, hostName) {
 function createDeck(deckCount = 6) {
   const deck = [];
   let id = 0;
+  const fillerRanks = [5, 7, 9]; // 本地“只留6张3”规则未给替换牌，先用中张补足到54张/副
   for (let d = 0; d < deckCount; d++) {
-    for (let r = 3; r <= 15; r++) {
+    deck.push({ rank: 3, suit: d % 4, id: id++ });
+    for (let r = 4; r <= 15; r++) {
       for (let s = 0; s < 4; s++) {
         deck.push({ rank: r, suit: s, id: id++ });
       }
     }
+    fillerRanks.forEach((rank, idx) => deck.push({ rank, suit: idx % 4, id: id++ }));
     deck.push({ rank: 16, suit: -1, id: id++ });
     deck.push({ rank: 17, suit: -1, id: id++ });
   }
@@ -109,7 +117,7 @@ function sortHand(hand) {
 }
 
 function cloneCard(card) {
-  return { rank: card.rank, suit: card.suit, id: card.id };
+  return { ...card };
 }
 
 function countRank(hand, rank) {
@@ -213,7 +221,7 @@ function applyNaojiPenalty(room, fromSeat, toSeat) {
   pushCards(game.hands[toSeat], [pay]);
   sortHand(game.hands[fromSeat]);
   sortHand(game.hands[toSeat]);
-  maybeFinishPlayer(game, fromSeat);
+  maybeFinishPlayer(game, fromSeat, room);
   stabilizeCurrentPlayer(game);
   return { ok: true, card: pay };
 }
@@ -221,6 +229,11 @@ function applyNaojiPenalty(room, fromSeat, toSeat) {
 
 function chooseTimeoutLeadIds(game, seat) {
   const hand = [...game.hands[seat]].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit);
+  if (game.activeBurns?.[seat]) {
+    const jokers = hand.filter(c => c.rank >= 16);
+    if (jokers.length > 0) return [jokers[0].id];
+    return [];
+  }
   const non34 = hand.filter(c => c.rank !== 3 && c.rank !== 4);
   if (non34.length > 0) return [non34[0].id];
 
@@ -243,6 +256,7 @@ function clearTurnTimer(room) {
 function scheduleTurnTimer(room) {
   clearTurnTimer(room);
   if (!room || !room.game || room.state !== 'playing') return;
+  ensureTurnSeatValid(room);
   const game = room.game;
   if (game.currentPlayer < 0 || game.finished[game.currentPlayer]) return;
   game.turnEndsAt = Date.now() + 10000;
@@ -306,7 +320,7 @@ function processNaoji(room, seat) {
     game.hands[fromSeat] = res.kept;
     got = res.removed;
     sourceName = room.players.find(p => p.seat === fromSeat)?.name || ('座位' + (fromSeat + 1));
-    maybeFinishPlayer(game, fromSeat);
+    maybeFinishPlayer(game, fromSeat, room);
     stabilizeCurrentPlayer(game);
   } else {
     const res = removeOneCardById(game.playedPool, pick.card.id);
@@ -543,20 +557,18 @@ function analyzePlay(cards) {
     return null;
   }
 
-  const baseRank = [...normalRanks].sort((a, b) => {
-    const diff = (counts[b] || 0) - (counts[a] || 0);
-    return diff !== 0 ? diff : b - a;
-  })[0];
+  if (normalRanks.length !== 1) return null;
+  const baseRank = normalRanks[0];
   const baseCount = counts[baseRank] || 0;
-  const flowerCount = normalRanks.filter(r => r !== baseRank).reduce((sum, r) => sum + (counts[r] || 0), 0);
-  const coreCount = baseCount + twos + smallJ + bigJ;
+  const flowerCount = smallJ + bigJ;
+  const coreCount = baseCount + twos + flowerCount;
   return {
     count: cards.length,
     baseRank,
     baseCount,
     coreCount,
     flowerCount,
-    hasJoker: (bigJ + smallJ) > 0,
+    hasJoker: flowerCount > 0,
     jokerLevel: bigJ > 0 ? 17 : (smallJ > 0 ? 16 : 0),
     bigJokers: bigJ,
     smallJokers: smallJ,
@@ -602,7 +614,7 @@ function isShaoPlay(cards) {
   const a = analyzePlay(cards);
   if (!a) return false;
   if (a.flowerCount > 0) return true;
-  if (a.baseRank >= 15) return true;
+  if (a.baseRank >= 16) return true;
   return a.baseCount >= goujiThreshold(a.baseRank);
 }
 
@@ -621,18 +633,13 @@ function canBeat(cards, tableCards) {
   return a.baseRank > t.baseRank;
 }
 
-function makeVirtualCards(baseRank, countBase, countTwo, countSmall, countBig, flowerCount = 0) {
+function makeVirtualCards(baseRank, countBase, countTwo, countSmall, countBig) {
   const cards = [];
   let id = -1;
   for (let i = 0; i < countBase; i++) cards.push({ rank: baseRank, suit: 0, id: id-- });
   for (let i = 0; i < countTwo; i++) cards.push({ rank: 15, suit: 0, id: id-- });
   for (let i = 0; i < countSmall; i++) cards.push({ rank: 16, suit: -1, id: id-- });
   for (let i = 0; i < countBig; i++) cards.push({ rank: 17, suit: -1, id: id-- });
-  for (let i = 0; i < flowerCount; i++) {
-    let fakeRank = ((baseRank + i - 3) % 12) + 3;
-    if (fakeRank === baseRank) fakeRank = ((fakeRank - 2) % 12) + 3;
-    cards.push({ rank: fakeRank, suit: i % 4, id: id-- });
-  }
   return cards;
 }
 
@@ -643,23 +650,37 @@ function handCanBeatPlay(hand, tableCards) {
   for (const c of hand) cnt[c.rank] = (cnt[c.rank] || 0) + 1;
   if (target.count === 1 && (target.bigJokers || 0) === 1 && (cnt[17] || 0) >= 2) return true;
   const need = target.count;
-  for (let baseRank = 3; baseRank <= 15; baseRank++) {
-    const maxBase = cnt[baseRank] || 0;
-    for (let useBase = 1; useBase <= Math.min(maxBase, need); useBase++) {
-      const remain1 = need - useBase;
-      const maxTwo = baseRank === 15 ? 0 : Math.min(cnt[15] || 0, remain1);
-      for (let useTwo = 0; useTwo <= maxTwo; useTwo++) {
-        const remain2 = remain1 - useTwo;
-        const maxSmall = Math.min(cnt[16] || 0, remain2);
-        for (let useSmall = 0; useSmall <= maxSmall; useSmall++) {
-          const remain3 = remain2 - useSmall;
-          const maxBig = Math.min(cnt[17] || 0, remain3);
-          for (let useBig = 0; useBig <= maxBig; useBig++) {
-            const flowers = remain3 - useBig;
-            if (flowers < 0) continue;
-            const cards = makeVirtualCards(baseRank, useBase, useTwo, useSmall, useBig, flowers);
-            if (canBeat(cards, tableCards)) return true;
-          }
+
+  if (target.baseRank >= 16 || target.baseRank === 15) {
+    if ((cnt[17] || 0) >= need) {
+      const cards = makeVirtualCards(17, 0, 0, 0, need);
+      if (canBeat(cards, tableCards)) return true;
+    }
+    if ((cnt[16] || 0) >= need) {
+      const cards = makeVirtualCards(16, 0, 0, need, 0);
+      if (canBeat(cards, tableCards)) return true;
+    }
+    if ((cnt[15] || 0) >= need) {
+      const cards = makeVirtualCards(15, 0, need, 0, 0);
+      if (canBeat(cards, tableCards)) return true;
+    }
+    return false;
+  }
+
+  const maxBase = cnt[target.baseRank] || 0;
+  for (let useBase = 1; useBase <= Math.min(maxBase, need); useBase++) {
+    const remain1 = need - useBase;
+    const maxTwo = Math.min(cnt[15] || 0, remain1);
+    for (let useTwo = 0; useTwo <= maxTwo; useTwo++) {
+      const remain2 = remain1 - useTwo;
+      const maxSmall = Math.min(cnt[16] || 0, remain2);
+      for (let useSmall = 0; useSmall <= maxSmall; useSmall++) {
+        const remain3 = remain2 - useSmall;
+        const maxBig = Math.min(cnt[17] || 0, remain3);
+        for (let useBig = 0; useBig <= maxBig; useBig++) {
+          if (useBase + useTwo + useSmall + useBig != need) continue;
+          const cards = makeVirtualCards(target.baseRank, useBase, useTwo, useSmall, useBig);
+          if (canBeat(cards, tableCards)) return true;
         }
       }
     }
@@ -690,6 +711,104 @@ function activeSeats(game) {
   return [0,1,2,3,4,5].filter(s => !game.finished[s]);
 }
 
+function getNoHeadSeat(game) {
+  if (!game || !Array.isArray(game.rankings) || game.rankings.length < 1) return -1;
+  return (game.rankings[0] + 3) % 6;
+}
+
+function isChaosPhase(game) {
+  return !!game && (game.rankings?.length || 0) >= 2;
+}
+
+function useGoujiRestrictions(game, attacker, responder = -1) {
+  if (!game) return false;
+  if (isChaosPhase(game)) return false;
+  const noHead = getNoHeadSeat(game);
+  if (noHead >= 0 && (attacker === noHead || responder === noHead)) return false;
+  return true;
+}
+
+function burnSortWeight(attacker, seat) {
+  return (attacker - seat + 6) % 6;
+}
+
+function buildBurnQueue(game, attacker) {
+  const opposite = (attacker + 3) % 6;
+  const seats = activeSeats(game).filter(s => s !== attacker && s !== opposite);
+  const mates = seats.filter(s => sameTeam(s, attacker)).sort((a, b) => burnSortWeight(attacker, a) - burnSortWeight(attacker, b));
+  const others = seats.filter(s => !sameTeam(s, attacker)).sort((a, b) => burnSortWeight(attacker, a) - burnSortWeight(attacker, b));
+  return [...mates, ...others];
+}
+
+function nextBurnResponder(game) {
+  if (!game?.isGoujiMode) return -1;
+  for (const s of (game.burnQueue || [])) {
+    if (!game.finished[s] && !game.passedThisRound.includes(s)) return s;
+  }
+  const opposite = game.goujiPair?.[1] ?? -1;
+  if (opposite >= 0 && !game.finished[opposite] && !game.passedThisRound.includes(opposite)) return opposite;
+  return -1;
+}
+
+function isResponderOpposite(prevPlayer, seat) {
+  return ((prevPlayer + 3) % 6) === seat;
+}
+
+function hasAnyJoker(hand) {
+  return hand.some(c => c.rank >= 16);
+}
+
+function maybeFailActiveBurnAtTurnStart(room, seat) {
+  const game = room?.game;
+  if (!game || seat < 0 || game.finished[seat]) return false;
+  if (!game.activeBurns?.[seat]) return false;
+  const hand = game.hands[seat] || [];
+  if (hasAnyJoker(hand)) return false;
+  if (hand.length > 0 && hand.every(c => c.rank === 3)) return false;
+  markBurnFailure(room, seat, -1);
+  return true;
+}
+
+function ensureTurnSeatValid(room) {
+  const game = room?.game;
+  if (!game) return;
+  let guard = 0;
+  while (game.currentPlayer >= 0 && guard < 8) {
+    guard++;
+    if (!game.finished[game.currentPlayer] && !maybeFailActiveBurnAtTurnStart(room, game.currentPlayer)) break;
+    if (maybeGameOver(game)) break;
+    const next = nextActiveSeat(game, game.currentPlayer);
+    game.currentPlayer = next === -1 ? activeSeats(game)[0] ?? -1 : next;
+  }
+}
+
+function finalizeFailedLastQueue(game) {
+  if (!game || !Array.isArray(game.failedLastQueue)) return;
+  game.failedLastQueue.forEach(seat => {
+    if (!game.rankings.includes(seat)) game.rankings.push(seat);
+  });
+}
+
+function markBurnFailure(room, seat, bySeat = -1) {
+  const game = room?.game;
+  if (!game) return false;
+  if (seat < 0 || seat > 5) return false;
+  if (game.finished[seat]) return false;
+  game.finished[seat] = true;
+  game.rankings = game.rankings.filter(s => s !== seat);
+  game.failedLastQueue = game.failedLastQueue || [];
+  if (!game.failedLastQueue.includes(seat)) game.failedLastQueue.push(seat);
+  game.playerActions[seat] = { type: 'burn_fail', bySeat };
+  game.passedThisRound = game.passedThisRound.filter(s => s !== seat);
+  if (game.currentPlayer === seat) {
+    const next = activeSeats(game)[0];
+    game.currentPlayer = next ?? -1;
+  }
+  if (game.menCandidate?.seat === seat) game.menCandidate = null;
+  if (game.activeBurns?.[seat]) game.activeBurns[seat] = null;
+  return true;
+}
+
 function allFoursSelectedIfKaiDian(hand, cards) {
   const all4 = hand.filter(c => c.rank === 4);
   return all4.length > 0 && cards.length === all4.length && cards.every(c => c.rank === 4);
@@ -712,26 +831,23 @@ function resolveRoundEffects(room) {
   const game = room.game;
   if (!game) return [];
   const logs = [];
-  if (game.pendingShao) {
-    const { burner, victim } = game.pendingShao;
-    if (victim >= 0) {
-      room.burnTributeDebt[victim] = (room.burnTributeDebt[victim] || 0) + 1;
-      game.mustFlowerAfterShao[burner] = true;
-      logs.push({ type: '烧贡', burner, victim });
-    }
-  }
   game.pendingShao = null;
   game.menCandidate = null;
   game.letSeat = -1;
+  game.letAwaitingReturn = false;
+  game.burnQueue = [];
   return logs;
 }
 
 function canTriggerKaiDian(game, seat) {
   if (!game || game.finished[seat]) return false;
-  if ((game.rankings?.length || 0) >= 2) return false;
+  if ((activeSeats(game).length || 0) < 5) return false;
+  const duiTou = (seat + 3) % 6;
+  if (game.finished[duiTou]) return false;
   if (countRank(game.hands[seat], 4) <= 0) return false;
   if (game.openedDian?.[seat]) return false;
   if (game.lostKaiDian?.[seat]) return false;
+  if (!game.tablePlay?.isPureGouji) return false;
   return true;
 }
 
@@ -748,17 +864,26 @@ function resetRound(game, starter, preserveSeat = -1, preserveAction = null) {
   game.passedThisRound = [];
   game.isGoujiMode = false;
   game.goujiPair = [-1, -1];
+  game.burnQueue = [];
+  game.pendingShao = null;
   game.canKaiDian = -1;
+  game.letSeat = -1;
+  game.letAwaitingReturn = false;
   game.currentPlayer = starter;
   game.playerActions = [{},{},{},{},{},{}];
   if (preserveSeat >= 0 && preserveAction) game.playerActions[preserveSeat] = preserveAction;
   return { ok: true, newRound: true };
 }
 
-function maybeFinishPlayer(game, seat) {
+function maybeFinishPlayer(game, seat, room = null) {
   if (!game.finished[seat] && game.hands[seat].length === 0) {
     game.finished[seat] = true;
     game.rankings.push(seat);
+    if (room && game.activeBurns?.[seat]) {
+      const victim = game.activeBurns[seat].victim;
+      if (victim >= 0) room.burnTributeDebt[victim] = (room.burnTributeDebt[victim] || 0) + 1;
+      game.activeBurns[seat] = null;
+    }
   }
 }
 
@@ -766,18 +891,28 @@ function maybeGameOver(game) {
   const active = activeSeats(game);
   if (active.length <= 1) {
     if (active.length === 1 && !game.rankings.includes(active[0])) game.rankings.push(active[0]);
+    finalizeFailedLastQueue(game);
     return true;
   }
   return false;
 }
 
 // ============ Tribute / Buy-Three ============
+function chooseCardsExcludingTribute(hand, n, dir = 'low') {
+  const safe = hand.filter(c => !c.tributeReceived);
+  const source = safe.length >= n ? safe : hand;
+  const sorted = [...source].sort((a, b) => dir === 'low'
+    ? ((a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)
+    : ((a.rank !== b.rank) ? b.rank - a.rank : a.suit - b.suit));
+  return sorted.slice(0, n);
+}
+
 function getLowestCards(hand, n) {
-  return [...hand].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit).slice(0, n);
+  return chooseCardsExcludingTribute(hand, n, 'low');
 }
 
 function getHighestCards(hand, n) {
-  return [...hand].sort((a, b) => (a.rank !== b.rank) ? b.rank - a.rank : a.suit - b.suit).slice(0, n);
+  return chooseCardsExcludingTribute(hand, n, 'high');
 }
 
 function computePendingTribute(rankings) {
@@ -797,40 +932,44 @@ function computePendingTribute(rankings) {
 }
 
 function buildRoundTributes(room) {
-  const items = [...(room.pendingTribute || [])];
+  const pointItems = [];
+  const menItems = [];
+  const burnItems = [];
+  const laItems = [...(room.pendingTribute || [])];
   room.pendingTribute = null;
 
   for (let seat = 0; seat < 6; seat++) {
     const burn = room.burnTributeDebt?.[seat] || 0;
     const men = room.menTributeDebt?.[seat] || 0;
     const dian = room.dianTributeDebt?.[seat] || 0;
-    if (burn > 0) items.push({ from: seat, to: (seat + 3) % 6, count: burn, type: '烧贡' });
-    if (men > 0) items.push({ from: seat, to: (seat + 3) % 6, count: men, type: '闷贡' });
-    if (dian > 0) items.push({ from: (seat + 3) % 6, to: seat, count: dian, type: '点贡' });
+    if (dian > 0) pointItems.push({ from: (seat + 3) % 6, to: seat, count: dian, type: '点贡' });
+    if (men > 0) menItems.push({ from: seat, to: (seat + 3) % 6, count: men, type: '闷贡' });
+    if (burn > 0) burnItems.push({ from: seat, to: (seat + 3) % 6, count: burn, type: '烧贡' });
   }
 
   room.forceKaiDianThisRound = [...(room.forceKaiDianNextRound || [false,false,false,false,false,false])];
   room.forceKaiDianNextRound = [false,false,false,false,false,false];
-  room.dianSkipStreak = room.dianSkipStreak.map((v, i) => (room.forceKaiDianThisRound[i] ? 0 : v));
   room.burnTributeDebt = [0,0,0,0,0,0];
   room.menTributeDebt = [0,0,0,0,0,0];
   room.dianTributeDebt = [0,0,0,0,0,0];
-  return items;
+  return [...pointItems, ...menItems, ...burnItems, ...laItems];
 }
-
 
 function applyTribute(hands, pendingTribute) {
   const tributeLog = [];
   if (!pendingTribute || pendingTribute.length === 0) return tributeLog;
 
+  hands.forEach(hand => hand.forEach(card => { delete card.tributeReceived; }));
+
   for (const item of pendingTribute) {
     const give = getHighestCards(hands[item.from], item.count);
     hands[item.from] = removeSpecificCards(hands[item.from], give);
-    pushCards(hands[item.to], give);
+    const received = give.map(card => ({ ...cloneCard(card), tributeReceived: true }));
+    pushCards(hands[item.to], received);
 
     const back = getLowestCards(hands[item.to], item.count);
     hands[item.to] = removeSpecificCards(hands[item.to], back);
-    pushCards(hands[item.from], back);
+    pushCards(hands[item.from], back.map(c => ({ ...cloneCard(c), tributeReceived: false })));
 
     sortHand(hands[item.from]);
     sortHand(hands[item.to]);
@@ -922,10 +1061,13 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
     tributeLog,
     buySanLog,
     playedPool: [],
-    mustFlowerAfterShao: [false,false,false,false,false,false],
+    activeBurns: [null,null,null,null,null,null],
+    failedLastQueue: [],
     pendingShao: null,
+    burnQueue: [],
     menCandidate: null,
     letSeat: -1,
+    letAwaitingReturn: false,
     forceKaiDianThisRound: [false,false,false,false,false,false],
     naojiUses: [0,0,0,0,0,0],
     naojiMax: [0,1,2,3,4,5].map(i => getNaojiLimit(players.find(p => p.seat === i)?.name || '')),
@@ -967,6 +1109,9 @@ function getStateForPlayer(room, seat) {
     naojiMax: game.naojiMax || [5,5,5,5,5,5],
     turnEndsAt: game.turnEndsAt || 0,
     playedPoolCount: (game.playedPool || []).length,
+    noHeadSeat: getNoHeadSeat(game),
+    isChaosPhase: isChaosPhase(game),
+    activeBurns: game.activeBurns || [null,null,null,null,null,null],
     dianTributeDebt: room.dianTributeDebt || [0,0,0,0,0,0],
     dianSkipStreak: room.dianSkipStreak || [0,0,0,0,0,0],
     burnTributeDebt: room.burnTributeDebt || [0,0,0,0,0,0],
@@ -982,14 +1127,47 @@ function getStateForPlayer(room, seat) {
 }
 
 function broadcastState(room) {
+  ensureTurnSeatValid(room);
   room.players.forEach(p => io.to(p.id).emit('game_state', getStateForPlayer(room, p.seat)));
+}
+
+function settleDianTributes(room) {
+  const game = room?.game;
+  if (!game) return;
+  const pairs = [[0,3],[1,4],[2,5]];
+  for (const [a,b] of pairs) {
+    const aOpen = !!game.openedDian?.[a];
+    const bOpen = !!game.openedDian?.[b];
+    if (aOpen && !bOpen) room.dianTributeDebt[a] = (room.dianTributeDebt[a] || 0) + 1;
+    if (!aOpen && bOpen) room.dianTributeDebt[b] = (room.dianTributeDebt[b] || 0) + 1;
+    if (!aOpen && !bOpen) {
+      room.dianTributeDebt[a] = (room.dianTributeDebt[a] || 0) + 1;
+      room.dianTributeDebt[b] = (room.dianTributeDebt[b] || 0) + 1;
+    }
+
+    if (aOpen) room.dianSkipStreak[a] = 0;
+    else room.dianSkipStreak[a] = (room.dianSkipStreak[a] || 0) + 1;
+    if (bOpen) room.dianSkipStreak[b] = 0;
+    else room.dianSkipStreak[b] = (room.dianSkipStreak[b] || 0) + 1;
+
+    if (room.dianSkipStreak[a] >= 3) {
+      room.forceKaiDianNextRound[a] = true;
+      room.dianSkipStreak[a] = 0;
+    }
+    if (room.dianSkipStreak[b] >= 3) {
+      room.forceKaiDianNextRound[b] = true;
+      room.dianSkipStreak[b] = 0;
+    }
+  }
 }
 
 function finishGame(room) {
   clearTurnTimer(room);
   room.state = 'gameover';
   resolveRoundEffects(room);
+  settleDianTributes(room);
   room.pendingTribute = computePendingTribute(room.game.rankings);
+  room.nextStarterSeat = room.game.rankings?.[5] ?? -1;
   room.players.forEach(p => {
     io.to(p.id).emit('game_over', {
       rankings: room.game.rankings,
@@ -1011,13 +1189,11 @@ function executeFourChoice(room, seat, cards, kind = 'normal4') {
     room.dianSkipStreak[seat] = 0;
     room.forceKaiDianThisRound[seat] = false;
   } else {
-    room.dianTributeDebt[seat] = (room.dianTributeDebt[seat] || 0) + 1;
-    room.dianSkipStreak[seat] = Math.min(3, (room.dianSkipStreak[seat] || 0) + 1);
-    if (room.dianSkipStreak[seat] >= 3) room.forceKaiDianNextRound[seat] = true;
     game.lostKaiDian[seat] = true;
+    room.forceKaiDianThisRound[seat] = false;
   }
 
-  maybeFinishPlayer(game, seat);
+  maybeFinishPlayer(game, seat, room);
   if (maybeGameOver(game)) return { ok: true, gameOver: true };
   const logs = resolveRoundEffects(room);
   const nextStarter = game.finished[seat] ? activeSeats(game)[0] : seat;
@@ -1035,7 +1211,9 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (cards.length !== cardIds.length) return { ok: false, msg: '无效的牌' };
   const analyzed = analyzePlay(cards);
   if (!analyzed) return { ok: false, msg: '无效出牌组合' };
-  if (game.mustFlowerAfterShao?.[seat] && analyzed.flowerCount <= 0) return { ok: false, msg: '烧后出牌必须带花' };
+  const remainingAfterPlayEarly = hand.filter(c => !cardIds.includes(c.id));
+  const isLastThreeBurnException = !!game.activeBurns?.[seat] && isExactlyAllRank(cards, 3) && remainingAfterPlayEarly.length === 0;
+  if (game.activeBurns?.[seat] && (analyzed.bigJokers + analyzed.smallJokers) <= 0 && !isLastThreeBurnException) return { ok: false, msg: '烧牌后每手都必须至少带一张王' };
 
   if (game.canKaiDian === seat) {
     const kind = (playMode === 'kaidian' || playMode === 'autokaidian') ? playMode : (playMode === 'callgong' ? 'callgong' : 'normal4');
@@ -1044,24 +1222,47 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
     return executeFourChoice(room, seat, cards, kind);
   }
 
-  const remainingAfterPlay = hand.filter(c => !cardIds.includes(c.id));
+  const remainingAfterPlay = remainingAfterPlayEarly;
   const threeCheck = canPlayFinalThree(game, seat, cards, remainingAfterPlay);
   if (!threeCheck.ok) return threeCheck;
 
   const prevPlay = game.tablePlay ? { ...game.tablePlay } : null;
+  const oppositeOfPrev = prevPlay ? ((prevPlay.player + 3) % 6) : -1;
+  const goujiRestricted = !!prevPlay && prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat);
+  const respondingToBurn = !!prevPlay && !!prevPlay.isShao;
+  const isOppositeResponse = !!prevPlay && seat === oppositeOfPrev;
+  const isBurnResponse = !!prevPlay && !isOppositeResponse && (respondingToBurn || goujiRestricted);
+
   if (prevPlay && !canBeat(cards, prevPlay.cards)) return { ok: false, msg: '压不住！' };
+  if (isBurnResponse && !isShaoPlay(cards)) return { ok: false, msg: '现在只能按烧牌规则上牌' };
 
   game.hands[seat] = remainingAfterPlay;
   game.playedPool.push(...cards.map(cloneCard));
   if (cards.some(c => c.rank === 4)) game.lostKaiDian[seat] = true;
-  const isGouji = isGoujiPlay(cards);
-  const isShao = !!prevPlay && isShaoPlay(cards);
-  game.tablePlay = { cards: [...cards], player: seat, isGouji, isShao };
+
+  const pureGouji = isPureGoujiPlay(cards);
+  const triggersGouji = isGoujiPlay(cards) && useGoujiRestrictions(game, seat, (seat + 3) % 6);
+  const isShao = isBurnResponse;
+  const isJieShao = respondingToBurn && isOppositeResponse;
+
+  game.tablePlay = { cards: [...cards], player: seat, isGouji: triggersGouji, isPureGouji: pureGouji, isShao, isJieShao };
   game.passedThisRound = [];
   game.roundStarter = seat;
-  game.playerActions[seat] = { type: 'play', cards: [...cards], isShao };
+  game.playerActions[seat] = { type: 'play', cards: [...cards], isShao, isJieShao, isFanShao: respondingToBurn && isBurnResponse };
+  if (respondingToBurn && prevPlay?.player >= 0 && game.activeBurns?.[prevPlay.player]) {
+    if (isOppositeResponse) {
+      game.playerActions[seat].isJieShao = true;
+      game.activeBurns[prevPlay.player] = null;
+    } else if (isBurnResponse) {
+      game.playerActions[seat].isFanShao = true;
+      game.activeBurns[prevPlay.player] = null;
+    }
+  }
   game.canKaiDian = -1;
   game.letSeat = -1;
+  game.isGoujiMode = false;
+  game.goujiPair = [-1, -1];
+  game.burnQueue = [];
 
   if (prevPlay) {
     if (game.menCandidate && game.menCandidate.seat === prevPlay.player && seat !== prevPlay.player) {
@@ -1070,9 +1271,9 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
       game.playerActions[seat].isMen = true;
     }
     if (isShao) {
+      game.activeBurns[seat] = { victim: prevPlay.player };
       game.pendingShao = { burner: seat, victim: prevPlay.player };
-      game.playerActions[seat].isFanShao = !!prevPlay.isShao;
-    } else if (prevPlay.isShao) {
+    } else {
       game.pendingShao = null;
     }
   }
@@ -1080,15 +1281,17 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (remainingAfterPlay.length > 0 && remainingAfterPlay.every(c => c.rank === 3)) game.menCandidate = { seat };
   else if (game.menCandidate?.seat === seat) game.menCandidate = null;
 
-  maybeFinishPlayer(game, seat);
+  maybeFinishPlayer(game, seat, room);
   if (maybeGameOver(game)) return { ok: true, gameOver: true };
 
-  if (isGouji && !game.finished[seat]) {
+  if (triggersGouji && !game.finished[seat]) {
     const duiTou = (seat + 3) % 6;
     if (!game.finished[duiTou]) {
       game.isGoujiMode = true;
       game.goujiPair = [seat, duiTou];
-      game.currentPlayer = duiTou;
+      game.burnQueue = buildBurnQueue(game, seat);
+      game.currentPlayer = nextBurnResponder(game);
+      if (game.currentPlayer < 0) game.currentPlayer = duiTou;
       return { ok: true };
     }
   }
@@ -1117,9 +1320,8 @@ function processPass(room, seat) {
   if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
 
   if (game.canKaiDian === seat) {
-    room.dianTributeDebt[seat] = (room.dianTributeDebt[seat] || 0) + 1;
-    room.dianSkipStreak[seat] = Math.min(3, (room.dianSkipStreak[seat] || 0) + 1);
-    if (room.dianSkipStreak[seat] >= 3) room.forceKaiDianNextRound[seat] = true;
+    game.lostKaiDian[seat] = true;
+    room.forceKaiDianThisRound[seat] = false;
     const logs = resolveRoundEffects(room);
     const starter = game.finished[seat] ? activeSeats(game)[0] : seat;
     const res = resetRound(game, starter);
@@ -1131,40 +1333,60 @@ function processPass(room, seat) {
   game.passedThisRound.push(seat);
   game.playerActions[seat] = { type: 'pass' };
 
-  if (game.isGoujiMode && seat === game.goujiPair[1]) {
-    game.isGoujiMode = false;
-    const attacker = game.goujiPair[0];
-    if (canTriggerKaiDian(game, attacker)) {
-      if (game.forceKaiDianThisRound?.[attacker]) {
-        const autoCards = getCardsByRank(game.hands[attacker], 4);
-        return executeFourChoice(room, attacker, autoCards, 'autokaidian');
+  if (game.isGoujiMode) {
+    const opposite = game.goujiPair[1];
+    if (seat !== opposite) {
+      const nextResponder = nextBurnResponder(game);
+      if (nextResponder >= 0) {
+        game.currentPlayer = nextResponder;
+        return { ok: true };
       }
-      game.canKaiDian = attacker;
-      game.currentPlayer = attacker;
-      return { ok: true };
+    } else {
+      game.isGoujiMode = false;
+      game.burnQueue = [];
+      const attacker = game.goujiPair[0];
+      if (canTriggerKaiDian(game, attacker)) {
+        if (game.forceKaiDianThisRound?.[attacker]) {
+          const autoCards = getCardsByRank(game.hands[attacker], 4);
+          return executeFourChoice(room, attacker, autoCards, 'autokaidian');
+        }
+        game.canKaiDian = attacker;
+        game.currentPlayer = attacker;
+        return { ok: true };
+      }
+      const logs = resolveRoundEffects(room);
+      const starter = game.finished[attacker] ? activeSeats(game)[0] : attacker;
+      const res = resetRound(game, starter);
+      return { ...res, roundEffectLogs: logs };
     }
-    const logs = resolveRoundEffects(room);
-    const starter = game.finished[attacker] ? activeSeats(game)[0] : attacker;
-    const res = resetRound(game, starter);
-    return { ...res, roundEffectLogs: logs };
   }
 
   const active = activeSeats(game);
   const candidates = active.filter(p => !game.passedThisRound.includes(p) && p !== game.tablePlay.player);
   if (candidates.length === 0) {
+    if (game.letSeat >= 0 && !game.letAwaitingReturn && !game.finished[game.letSeat]) {
+      game.currentPlayer = game.letSeat;
+      game.letAwaitingReturn = true;
+      game.passedThisRound = game.passedThisRound.filter(s => s !== game.letSeat);
+      return { ok: true };
+    }
     const baseStarter = game.finished[game.tablePlay.player] ? active[0] : game.tablePlay.player;
-    const starter = (game.letSeat >= 0 && !game.finished[game.letSeat]) ? game.letSeat : baseStarter;
     const logs = resolveRoundEffects(room);
-    const res = resetRound(game, starter);
+    const res = resetRound(game, baseStarter);
     return { ...res, roundEffectLogs: logs };
   }
 
   const next = nextActiveSeat(game, seat);
   if (next === -1 || next === game.tablePlay.player) {
+    if (game.letSeat >= 0 && !game.letAwaitingReturn && !game.finished[game.letSeat]) {
+      game.currentPlayer = game.letSeat;
+      game.letAwaitingReturn = true;
+      game.passedThisRound = game.passedThisRound.filter(s => s !== game.letSeat);
+      return { ok: true };
+    }
     const baseStarter = game.finished[game.tablePlay.player] ? active[0] : game.tablePlay.player;
-    const starter = (game.letSeat >= 0 && !game.finished[game.letSeat]) ? game.letSeat : baseStarter;
     const logs = resolveRoundEffects(room);
-    const res = resetRound(game, starter);
+    const res = resetRound(game, baseStarter);
     return { ...res, roundEffectLogs: logs };
   }
 
@@ -1179,12 +1401,14 @@ function processLet(room, seat) {
   game.passedThisRound.push(seat);
   game.playerActions[seat] = { type: 'yield' };
   game.letSeat = seat;
+  game.letAwaitingReturn = false;
 
   const next = nextActiveSeat(game, seat);
   if (next === -1 || next === game.tablePlay.player) {
-    const logs = resolveRoundEffects(room);
-    const res = resetRound(game, seat);
-    return { ...res, roundEffectLogs: logs };
+    game.currentPlayer = seat;
+    game.letAwaitingReturn = true;
+    game.passedThisRound = game.passedThisRound.filter(s => s !== seat);
+    return { ok: true };
   }
   game.currentPlayer = next;
   return { ok: true };
@@ -1237,7 +1461,9 @@ io.on('connection', (socket) => {
     const tributeLog = applyTribute(hands, buildRoundTributes(room));
     const buySanLog = applyBuyThree(hands);
 
-    const firstPlayer = cheatSeat >= 0 ? cheatSeat : Math.floor(Math.random() * 6);
+    const firstPlayer = (room.nextStarterSeat >= 0 && room.nextStarterSeat < 6)
+      ? room.nextStarterSeat
+      : (cheatSeat >= 0 ? cheatSeat : Math.floor(Math.random() * 6));
     room.game = createGameState(hands, firstPlayer, room.nextRoundNumber++, tributeLog, buySanLog, room.players);
     room.game.forceKaiDianThisRound = [...(room.forceKaiDianThisRound || [false,false,false,false,false,false])];
     room.state = 'playing';
@@ -1360,6 +1586,14 @@ io.on('connection', (socket) => {
 
     if (maybeGameOver(room.game)) return finishGame(room);
     broadcastState(room);
+  });
+
+  socket.on('strategist_view_teammates', () => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const result = processStrategistView(room, currentSeat);
+    if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
+    socket.emit('strategist_result', result);
   });
 
   socket.on('cheat_toggle', () => {

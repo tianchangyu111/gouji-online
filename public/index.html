@@ -244,9 +244,9 @@ body {
 
 .plabel .name-tag {
   color: var(--gold);
-  font-size: 12px;
+  font-size: 16px;
   font-family: 'Ma Shan Zheng', cursive;
-  padding: 2px 10px;
+  padding: 4px 12px;
   background: rgba(0,0,0,0.5);
   border-radius: 10px;
   border: 1px solid rgba(212,168,67,0.2);
@@ -886,7 +886,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   <div id="bottom-panel">
     <div id="panel-top">
       <div id="turn-timer">倒计时：--</div>
-      <div id="panel-meta">把自己的照片命名为 joker-big.jpg / joker-small.jpg 放到 public/assets</div>
+      <div id="panel-meta"></div>
     </div>
 
     <div id="actions">
@@ -1086,6 +1086,10 @@ function connect() {
     showPeekOverlay(data);
   });
 
+  socket.on('strategist_result', (data) => {
+    showStrategistPanel(data);
+  });
+
   socket.on('cheat_status', (data) => {
     const el = document.getElementById('game-title');
     if (el) {
@@ -1190,8 +1194,8 @@ function showGame(state) {
   document.getElementById('btn-let').disabled = !state.canLet;
   document.getElementById('btn-naoji').disabled = state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]);
   document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
-  document.getElementById('btn-callgong').style.display = isKaiDianTurn ? '' : 'none';
-  document.getElementById('btn-callgong').disabled = !isKaiDianTurn;
+  document.getElementById('btn-callgong').style.display = 'none';
+  document.getElementById('btn-callgong').disabled = true;
   document.getElementById('btn-peek').style.display = (state.peekMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
   document.getElementById('btn-peek').disabled = !state.canPeek || state.finished[state.mySeat];
   document.getElementById('btn-strategist').style.display = state.canStrategist ? '' : 'none';
@@ -1211,7 +1215,8 @@ function showGame(state) {
     const strategistText = state.canStrategist ? `　|　狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
     const tributeText = `　|　点贡:${state.dianTributeDebt?.[state.mySeat] ?? 0} 烧贡:${state.burnTributeDebt?.[state.mySeat] ?? 0} 闷贡:${state.menTributeDebt?.[state.mySeat] ?? 0}`;
     const letText = state.canLet ? '　|　可让牌' : '';
-    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}`;
+    const phaseText = state.isChaosPhase ? '　|　四人乱缠' : (state.noHeadSeat >= 0 ? `　|　无头：${getPlayerName(state, state.noHeadSeat)}` : '');
+    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}${phaseText}`;
   }
 
   const goBtn = document.getElementById('go-btn');
@@ -1250,6 +1255,7 @@ function renderLabels(state) {
     let extra = '';
     if (abs === state.mySeat) extra = '(我)';
     else if (isDuiTou) extra = '(对头)';
+    if (state.noHeadSeat === abs) extra += '·无头';
 
     // 开点 badge
     let dianHtml = '';
