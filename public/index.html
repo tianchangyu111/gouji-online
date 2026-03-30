@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>够级 - 联网对战</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Ma+Shan+Zheng&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --felt: #1a5c2a;
+  --felt-dark: #0f3d1a;
+  --felt-light: #2a7a3a;
+  --gold: #d4a843;
+  --gold-light: #f0d080;
+  --red: #cc2222;
+}
+
+body {
+  background: #0a0a0a;
+  font-family: 'Noto Serif SC', serif;
+  overflow: hidden;
+  height: 100vh; height: 100dvh;
+  width: 100vw;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* ============ LOBBY ============ */
+#lobby {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
+  padding: 20px;
+  gap: 16px;
+}
+
+.lobby-title {
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 48px;
+  color: var(--gold);
+  letter-spacing: 12px;
+  text-shadow: 0 0 30px rgba(212,168,67,0.4);
+  margin-bottom: 10px;
+}
+
+.lobby-sub {
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.lobby-input {
+  width: 260px;
+  padding: 12px 16px;
+  font-size: 18px;
+  font-family: 'Noto Serif SC', serif;
+  border: 2px solid rgba(212,168,67,0.4);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.4);
+  color: #fff;
+  text-align: center;
+  outline: none;
+}
+
+.lobby-input::placeholder { color: rgba(255,255,255,0.3); }
+.lobby-input:focus { border-color: var(--gold); }
+
+.lobby-btn {
+  width: 260px;
+  padding: 14px;
+  font-size: 20px;
+  font-family: 'Ma Shan Zheng', cursive;
+  letter-spacing: 4px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: linear-gradient(to bottom, #d4a843, #b8922a);
+  color: #1a1a1a;
+}
+.btn-primary:hover { background: linear-gradient(to bottom, #f0d080, #d4a843); }
+
+.btn-secondary {
+  background: rgba(255,255,255,0.1);
+  color: var(--gold);
+  border: 2px solid rgba(212,168,67,0.4);
+}
+
+.lobby-or {
+  color: rgba(255,255,255,0.3);
+  font-size: 14px;
+}
+
+#lobby-error {
+  color: #ff6b6b;
+  font-size: 14px;
+  min-height: 20px;
+}
+
+/* ============ WAITING ROOM ============ */
+#waiting {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
+  padding: 20px;
+  gap: 14px;
+}
+
+.room-code {
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 22px;
+  color: var(--gold-light);
+  letter-spacing: 3px;
+}
+
+.room-code span {
+  font-size: 36px;
+  color: #fff;
+  letter-spacing: 8px;
+  background: rgba(0,0,0,0.4);
+  padding: 6px 20px;
+  border-radius: 10px;
+  border: 2px solid var(--gold);
+  margin-left: 10px;
+}
+
+.player-list {
+  width: 300px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(212,168,67,0.2);
+  padding: 14px;
+}
+
+.player-slot {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 16px;
+  color: #ccc;
+}
+.player-slot:last-child { border-bottom: none; }
+
+.player-slot .seat-num {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  margin-right: 10px;
+  color: #fff;
+}
+.team-a-bg { background: #cc4444; }
+.team-b-bg { background: #3377cc; }
+
+.player-slot .pname {
+  flex: 1;
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 18px;
+}
+.player-slot .pname.empty { color: rgba(255,255,255,0.2); font-style: italic; }
+.player-slot .host-tag {
+  font-size: 11px;
+  color: var(--gold);
+  background: rgba(212,168,67,0.15);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.waiting-hint {
+  color: rgba(255,255,255,0.4);
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+#btn-start {
+  width: 260px;
+  padding: 14px;
+  font-size: 22px;
+  font-family: 'Ma Shan Zheng', cursive;
+  letter-spacing: 6px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(to bottom, #d4a843, #b8922a);
+  color: #1a1a1a;
+  cursor: pointer;
+}
+#btn-start:disabled { opacity: 0.3; cursor: default; }
+
+/* ============ GAME TABLE ============ */
+#game {
+  display: none;
+  position: relative;
+  width: 100vw;
+  height: 100vh; height: 100dvh;
+  background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
+  overflow: hidden;
+}
+
+#game::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 3h1v1H1V3zm2-2h1v1H3V1z' fill='%23000' fill-opacity='.06'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0;
+}
+
+#game-title {
+  position: absolute;
+  top: 8px; left: 14px;
+  color: var(--gold);
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 18px;
+  opacity: 0.5;
+  z-index: 2;
+  cursor: default;
+  letter-spacing: 3px;
+}
+
+/* Player labels around the table */
+.plabel {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.plabel .name-tag {
+  color: var(--gold);
+  font-size: 12px;
+  font-family: 'Ma Shan Zheng', cursive;
+  padding: 2px 10px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 10px;
+  border: 1px solid rgba(212,168,67,0.2);
+  white-space: nowrap;
+  transition: all 0.3s;
+}
+
+.plabel .name-tag.is-turn {
+  background: rgba(212,168,67,0.25);
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(212,168,67,0.4);
+}
+
+.plabel .team-indicator {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.plabel .card-info {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+
+.plabel .action-text {
+  font-size: 13px;
+  font-family: 'Ma Shan Zheng', cursive;
+  color: rgba(255,255,255,0.6);
+  min-height: 18px;
+}
+
+.plabel .finish-text {
+  color: var(--gold);
+  font-size: 15px;
+  font-family: 'Ma Shan Zheng', cursive;
+  text-shadow: 0 0 8px rgba(212,168,67,0.4);
+}
+
+/* 6 positions around table (relative seat from my view) */
+.plabel.pos-0 { bottom: 120px; left: 50%; transform: translateX(-50%); }
+.plabel.pos-1 { bottom: 30%; right: 10px; align-items: flex-end; }
+.plabel.pos-2 { top: 22%; right: 10px; align-items: flex-end; }
+.plabel.pos-3 { top: 6px; left: 50%; transform: translateX(-50%); }
+.plabel.pos-4 { top: 22%; left: 10px; align-items: flex-start; }
+.plabel.pos-5 { bottom: 30%; left: 10px; align-items: flex-start; }
+
+/* Played cards area per position */
+.played-area {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+  z-index: 4;
+  align-items: center;
+}
+
+.played-area.ppos-0 { bottom: 36%; left: 50%; transform: translateX(-50%); }
+.played-area.ppos-1 { bottom: 32%; right: 18%; }
+.played-area.ppos-2 { top: 28%; right: 18%; }
+.played-area.ppos-3 { top: 36%; left: 50%; transform: translateX(-50%); }
+.played-area.ppos-4 { top: 28%; left: 18%; }
+.played-area.ppos-5 { bottom: 32%; left: 18%; }
+
+/* Cards */
+.card {
+  width: 44px; height: 62px;
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid #aaa;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  box-shadow: 1px 2px 3px rgba(0,0,0,0.3);
+  flex-shrink: 0;
+}
+
+.card.red { color: var(--red); }
+.card.black { color: #222; }
+.card.joker-big { background: linear-gradient(135deg, #ff4444, #ff8800); color: #fff; }
+.card.joker-small { background: linear-gradient(135deg, #2244aa, #44aaff); color: #fff; }
+.card .rank { font-size: 12px; line-height: 1; }
+.card .suit { font-size: 14px; line-height: 1; }
+
+.card.selected {
+  transform: translateY(-16px);
+  box-shadow: 0 6px 16px rgba(212,168,67,0.5);
+  border-color: var(--gold);
+}
+
+.card:active { transform: translateY(-16px); }
+
+/* Mini cards in played area */
+.played-area .card {
+  width: 34px; height: 48px;
+  font-size: 10px; cursor: default;
+}
+.played-area .card .rank { font-size: 9px; }
+.played-area .card .suit { font-size: 11px; }
+.played-area .card.selected { transform: none; }
+
+.gouji-tag {
+  font-size: 10px;
+  color: #ff4444;
+  font-family: 'Ma Shan Zheng', cursive;
+  background: rgba(255,68,68,0.15);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 3px;
+}
+
+/* My hand */
+#my-hand {
+  position: absolute;
+  bottom: 10px;
+  left: 50%; transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  z-index: 10;
+  max-width: 98vw;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.card-group {
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.group-count {
+  position: absolute;
+  bottom: -7px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  color: var(--gold-light);
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-family: 'Ma Shan Zheng', cursive;
+  pointer-events: none;
+  border: 1px solid rgba(212,168,67,0.3);
+  z-index: 11;
+}
+
+/* Action buttons */
+#actions {
+  position: absolute;
+  bottom: 86px;
+  left: 50%; transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 20;
+}
+
+#actions button {
+  padding: 7px 24px;
+  font-size: 16px;
+  font-family: 'Ma Shan Zheng', cursive;
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: 3px;
+  border: 2px solid var(--gold);
+  transition: all 0.2s;
+}
+
+.btn-go {
+  background: linear-gradient(to bottom, #d4a843, #b8922a);
+  color: #1a1a1a;
+}
+.btn-no {
+  background: rgba(0,0,0,0.4);
+  color: var(--gold);
+}
+button:disabled { opacity: 0.3; cursor: default !important; }
+
+/* Rankings */
+#rankings-panel {
+  position: absolute;
+  top: 6px; right: 8px;
+  z-index: 15;
+  color: var(--gold);
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 12px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(212,168,67,0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-width: 80px;
+}
+#rankings-panel h4 { font-size: 13px; text-align: center; margin-bottom: 3px; border-bottom: 1px solid rgba(212,168,67,0.15); padding-bottom: 3px; }
+
+/* Message toast */
+#toast {
+  position: fixed;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  font-size: 18px;
+  font-family: 'Ma Shan Zheng', cursive;
+  padding: 12px 30px;
+  border-radius: 12px;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  letter-spacing: 3px;
+}
+#toast.show { opacity: 1; }
+
+/* Game over overlay */
+#gameover {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+  z-index: 100;
+  gap: 16px;
+}
+#gameover.show { display: flex; }
+#gameover h2 {
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 32px;
+  color: var(--gold);
+  letter-spacing: 6px;
+}
+#gameover .go-detail {
+  color: #ccc;
+  font-size: 16px;
+  text-align: center;
+  line-height: 2;
+}
+#gameover button {
+  padding: 12px 36px;
+  font-size: 20px;
+  font-family: 'Ma Shan Zheng', cursive;
+  background: linear-gradient(to bottom, #d4a843, #b8922a);
+  color: #1a1a1a;
+  border: none; border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 4px;
+}
+</style>
+</head>
+<body>
+
+<!-- ============ LOBBY ============ -->
+<div id="lobby">
+  <div class="lobby-title">够 级</div>
+  <div class="lobby-sub">山东扑克 · 六人联网对战</div>
+
+  <input class="lobby-input" id="input-name" placeholder="输入你的昵称" maxlength="8" autocomplete="off">
+  <button class="lobby-btn btn-primary" onclick="doCreate()">创 建 房 间</button>
+  <div class="lobby-or">— 或者 —</div>
+  <input class="lobby-input" id="input-code" placeholder="输入房间号" maxlength="4" style="text-transform:uppercase" autocomplete="off">
+  <button class="lobby-btn btn-secondary" onclick="doJoin()">加 入 房 间</button>
+  <div id="lobby-error"></div>
+</div>
+
+<!-- ============ WAITING ROOM ============ -->
+<div id="waiting">
+  <div class="room-code">房间号 <span id="room-code-display"></span></div>
+  <div class="waiting-hint">把房间号告诉朋友，让他们加入<br>红队 vs 蓝队，座位1-3-5 对战 2-4-6</div>
+  <div class="player-list" id="player-list"></div>
+  <button id="btn-start" disabled onclick="doStart()">开 始 游 戏</button>
+  <div class="waiting-hint" id="wait-hint">等待玩家加入...</div>
+</div>
+
+<!-- ============ GAME TABLE ============ -->
+<div id="game">
+  <div id="game-title" onclick="onTitleClick()">够级</div>
+
+  <!-- Player labels (filled dynamically) -->
+  <div id="player-labels"></div>
+
+  <!-- Played cards areas -->
+  <div id="played-areas"></div>
+
+  <!-- My hand -->
+  <div id="my-hand"></div>
+
+  <!-- Actions -->
+  <div id="actions">
+    <button class="btn-go" id="btn-play" onclick="doPlay()" disabled>出 牌</button>
+    <button class="btn-no" id="btn-pass" onclick="doPass()" disabled>过 牌</button>
+  </div>
+
+  <!-- Rankings -->
+  <div id="rankings-panel">
+    <h4>排名</h4>
+    <div id="rank-list"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Game over -->
+<div id="gameover">
+  <h2 id="go-title"></h2>
+  <div class="go-detail" id="go-detail"></div>
+  <button id="go-btn" onclick="doRestart()">再 来 一 局</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ============ CONSTANTS ============
+const RANK_NAMES = {3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A',15:'2',16:'小',17:'大'};
+const SUIT_SYMBOLS = ['♠','♥','♦','♣'];
+const SUIT_COLORS = ['black','red','red','black'];
+const TEAM_A = [0,2,4], TEAM_B = [1,3,5];
+const RANK_LABELS = ['','头科','二科','三科','四科','二落','大落'];
+
+let socket = null;
+let mySeat = -1;
+let myRoom = '';
+let isHost = false;
+let selectedCards = [];
+let currentState = null;
+
+// Cheat
+let _cClicks = 0, _cTimer = null;
+
+function onTitleClick() {
+  if (!isHost) return;
+  _cClicks++;
+  clearTimeout(_cTimer);
+  _cTimer = setTimeout(() => { _cClicks = 0; }, 500);
+  if (_cClicks >= 3) {
+    _cClicks = 0;
+    socket.emit('cheat_toggle');
+  }
+}
+
+// ============ CONNECTION ============
+function connect() {
+  socket = io();
+
+  socket.on('room_joined', (data) => {
+    myRoom = data.code;
+    mySeat = data.seat;
+    isHost = data.seat === 0;
+    showWaiting(data.code, data.players);
+  });
+
+  socket.on('player_list', (data) => {
+    renderPlayerList(data.players);
+  });
+
+  socket.on('game_state', (state) => {
+    currentState = state;
+    selectedCards = [];
+    showGame(state);
+  });
+
+  socket.on('game_over', (data) => {
+    showGameOver(data);
+  });
+
+  socket.on('back_to_lobby', (data) => {
+    document.getElementById('gameover').classList.remove('show');
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('waiting').style.display = 'flex';
+    renderPlayerList(data.players);
+  });
+
+  socket.on('error_msg', (data) => {
+    toast(data.msg);
+  });
+
+  socket.on('cheat_status', (data) => {
+    const el = document.getElementById('game-title');
+    if (el) {
+      el.style.color = data.armed ? '#e85d5d' : '';
+      el.style.opacity = data.armed ? '0.85' : '';
+    }
+    toast(data.armed ? '已激活' : '已取消');
+  });
+
+  socket.on('player_disconnected', (data) => {
+    toast('有玩家掉线了');
+  });
+}
+
+// ============ LOBBY ACTIONS ============
+function doCreate() {
+  const name = document.getElementById('input-name').value.trim() || '房主';
+  if (!socket) connect();
+  socket.emit('create_room', { name });
+}
+
+function doJoin() {
+  const name = document.getElementById('input-name').value.trim() || '玩家';
+  const code = document.getElementById('input-code').value.trim().toUpperCase();
+  if (!code || code.length < 4) { toast('请输入4位房间号'); return; }
+  if (!socket) connect();
+  socket.emit('join_room', { code, name });
+}
+
+function doStart() {
+  socket.emit('start_game');
+}
+
+function doRestart() {
+  if (isHost) socket.emit('restart_game');
+}
+
+// ============ WAITING ROOM ============
+function showWaiting(code, players) {
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('waiting').style.display = 'flex';
+  document.getElementById('room-code-display').textContent = code;
+  renderPlayerList(players);
+}
+
+function renderPlayerList(players) {
+  const el = document.getElementById('player-list');
+  let html = '';
+  for (let i = 0; i < 6; i++) {
+    const p = players.find(pp => pp.seat === i);
+    const isTeamA = TEAM_A.includes(i);
+    const teamClass = isTeamA ? 'team-a-bg' : 'team-b-bg';
+    const teamLabel = isTeamA ? '红' : '蓝';
+    html += `<div class="player-slot">
+      <div class="seat-num ${teamClass}">${i+1}</div>
+      <div class="pname ${p ? '' : 'empty'}">${p ? p.name : '等待加入...'}</div>
+      ${p && p.seat === 0 ? '<span class="host-tag">房主</span>' : ''}
+      ${p && p.seat === mySeat ? '<span class="host-tag">你</span>' : ''}
+    </div>`;
+  }
+  el.innerHTML = html;
+
+  const btn = document.getElementById('btn-start');
+  if (isHost) {
+    btn.style.display = '';
+    btn.disabled = players.length < 6;
+    document.getElementById('wait-hint').textContent = players.length < 6
+      ? `等待玩家加入... (${players.length}/6)`
+      : '人齐了，可以开始！';
+  } else {
+    btn.style.display = 'none';
+    document.getElementById('wait-hint').textContent = `等待房主开始游戏 (${players.length}/6)`;
+  }
+}
+
+// ============ GAME RENDERING ============
+function showGame(state) {
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('waiting').style.display = 'none';
+  document.getElementById('game').style.display = 'block';
+  document.getElementById('gameover').classList.remove('show');
+
+  renderLabels(state);
+  renderPlayedAreas(state);
+  renderMyHand(state);
+  renderRankings(state);
+
+  // Enable/disable buttons
+  const isMyTurn = state.currentPlayer === state.mySeat && !state.finished[state.mySeat];
+  const hasTable = !!state.tablePlay;
+  document.getElementById('btn-play').disabled = !isMyTurn;
+  document.getElementById('btn-pass').disabled = !isMyTurn || !hasTable;
+
+  // Show host's restart button label in game-over context
+  const goBtn = document.getElementById('go-btn');
+  goBtn.style.display = isHost ? '' : 'none';
+}
+
+function getRelativeSeat(absSeat, myS) {
+  return (absSeat - myS + 6) % 6;
+}
+
+function getPlayerName(state, absSeat) {
+  const p = state.players.find(pp => pp.seat === absSeat);
+  return p ? p.name : ('座位' + (absSeat+1));
+}
+
+function renderLabels(state) {
+  const container = document.getElementById('player-labels');
+  let html = '';
+  for (let abs = 0; abs < 6; abs++) {
+    const rel = getRelativeSeat(abs, state.mySeat);
+    const name = getPlayerName(state, abs);
+    const isTeamA = TEAM_A.includes(abs);
+    const isTurn = state.currentPlayer === abs && !state.finished[abs];
+    const isDuiTou = (abs + 3) % 6 === state.mySeat;
+
+    let extra = '';
+    if (abs === state.mySeat) extra = '(我)';
+    else if (isDuiTou) extra = '(对头)';
+
+    let statusHtml = '';
+    if (state.finished[abs]) {
+      const ri = state.rankings.indexOf(abs);
+      statusHtml = `<div class="finish-text">${RANK_LABELS[ri+1]}</div>`;
+    } else if (rel !== 0) {
+      statusHtml = `<div class="card-info">${state.handCounts[abs]}张</div>`;
+    }
+
+    // Action text
+    let actionHtml = '';
+    const act = state.playerActions[abs];
+    if (act && act.type === 'pass') {
+      actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">过</div>';
+    }
+
+    html += `<div class="plabel pos-${rel}">
+      <div class="name-tag ${isTurn ? 'is-turn' : ''}">
+        <span class="team-indicator" style="background:${isTeamA ? '#cc4444' : '#3377cc'}"></span>
+        ${name} ${extra}
+      </div>
+      ${statusHtml}
+      ${actionHtml}
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderPlayedAreas(state) {
+  const container = document.getElementById('played-areas');
+  let html = '';
+  for (let abs = 0; abs < 6; abs++) {
+    const rel = getRelativeSeat(abs, state.mySeat);
+    const act = state.playerActions[abs];
+    let content = '';
+    if (act && act.type === 'play' && act.cards) {
+      act.cards.forEach(c => { content += cardHTML(c, true); });
+      // Check gouji
+      if (isGoujiPlayClient(act.cards)) {
+        content += '<span class="gouji-tag">够级</span>';
+      }
+    }
+    html += `<div class="played-area ppos-${rel}">${content}</div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderMyHand(state) {
+  const container = document.getElementById('my-hand');
+  container.innerHTML = '';
+  const hand = state.myHand;
+  if (!hand || hand.length === 0) return;
+
+  // Group by rank
+  const groups = [];
+  let cur = null;
+  for (const card of hand) {
+    if (!cur || cur.rank !== card.rank) {
+      cur = { rank: card.rank, cards: [] };
+      groups.push(cur);
+    }
+    cur.cards.push(card);
+  }
+
+  groups.forEach(group => {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'card-group';
+    const ov = group.cards.length <= 4 ? 16 : 12;
+
+    group.cards.forEach((card, idx) => {
+      const el = createCardEl(card);
+      if (idx > 0) el.style.marginLeft = (-44 + ov) + 'px';
+      if (selectedCards.some(c => c.id === card.id)) el.classList.add('selected');
+
+      el.addEventListener('click', () => toggleSelect(card));
+      // Double tap = select whole group
+      let lastTap = 0;
+      el.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          e.preventDefault();
+          toggleGroupSelect(group.cards);
+        }
+        lastTap = now;
+      });
+      el.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        toggleGroupSelect(group.cards);
+      });
+
+      groupEl.appendChild(el);
+    });
+
+    if (group.cards.length > 1) {
+      const badge = document.createElement('div');
+      badge.className = 'group-count';
+      badge.textContent = '×' + group.cards.length;
+      groupEl.appendChild(badge);
+    }
+
+    container.appendChild(groupEl);
+  });
+}
+
+function renderRankings(state) {
+  const el = document.getElementById('rank-list');
+  if (!state.rankings || state.rankings.length === 0) {
+    el.innerHTML = '<div style="color:#666;font-size:11px">—</div>';
+    return;
+  }
+  el.innerHTML = state.rankings.map((s, i) => {
+    const name = getPlayerName(state, s);
+    const team = TEAM_A.includes(s) ? '🔴' : '🔵';
+    return `<div style="font-size:12px;padding:1px 0">${RANK_LABELS[i+1]} ${team} ${name}</div>`;
+  }).join('');
+}
+
+// ============ CARD HELPERS ============
+function createCardEl(card) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  if (card.rank === 17) {
+    el.classList.add('joker-big');
+    el.innerHTML = '<span class="rank">大</span><span class="suit">王</span>';
+  } else if (card.rank === 16) {
+    el.classList.add('joker-small');
+    el.innerHTML = '<span class="rank">小</span><span class="suit">王</span>';
+  } else {
+    el.classList.add(SUIT_COLORS[card.suit]);
+    el.innerHTML = `<span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`;
+  }
+  return el;
+}
+
+function cardHTML(card, mini) {
+  let cls = 'card';
+  let inner = '';
+  if (card.rank === 17) { cls += ' joker-big'; inner = '<span class="rank">大</span><span class="suit">王</span>'; }
+  else if (card.rank === 16) { cls += ' joker-small'; inner = '<span class="rank">小</span><span class="suit">王</span>'; }
+  else { cls += ' ' + SUIT_COLORS[card.suit]; inner = `<span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`; }
+  return `<div class="${cls}">${inner}</div>`;
+}
+
+function isGoujiPlayClient(cards) {
+  if (!cards || cards.length === 0) return false;
+  const hasJoker = cards.some(c => c.rank >= 16);
+  if (hasJoker) return true;
+  const r = cards.filter(c => c.rank <= 14);
+  if (r.length === 0) {
+    if (cards.some(c => c.rank === 15)) return true;
+    return false;
+  }
+  const baseRank = r[0].rank;
+  const count = cards.length;
+  if (baseRank === 10 && count >= 5) return true;
+  if (baseRank === 11 && count >= 4) return true;
+  if (baseRank === 12 && count >= 3) return true;
+  if (baseRank === 13 && count >= 2) return true;
+  if (baseRank === 14 && count >= 2) return true;
+  if (baseRank === 15) return true;
+  return false;
+}
+
+// ============ INTERACTIONS ============
+function toggleSelect(card) {
+  const idx = selectedCards.findIndex(c => c.id === card.id);
+  if (idx >= 0) selectedCards.splice(idx, 1);
+  else selectedCards.push(card);
+  if (currentState) renderMyHand(currentState);
+}
+
+function toggleGroupSelect(cards) {
+  const allSel = cards.every(c => selectedCards.some(s => s.id === c.id));
+  if (allSel) {
+    selectedCards = selectedCards.filter(s => !cards.some(c => c.id === s.id));
+  } else {
+    cards.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
+  }
+  if (currentState) renderMyHand(currentState);
+}
+
+function doPlay() {
+  if (selectedCards.length === 0) { toast('请先选牌'); return; }
+  socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id) });
+  selectedCards = [];
+}
+
+function doPass() {
+  socket.emit('pass');
+  selectedCards = [];
+}
+
+// ============ GAME OVER ============
+function showGameOver(data) {
+  const { rankings, players } = data;
+  const myRankIdx = rankings.indexOf(mySeat);
+
+  const topThree = rankings.slice(0, 3);
+  const myTeam = TEAM_A.includes(mySeat) ? TEAM_A : TEAM_B;
+  const allMine = topThree.every(s => myTeam.includes(s));
+  const allTheirs = topThree.every(s => !myTeam.includes(s));
+
+  const teamASum = rankings.map((s,i) => TEAM_A.includes(s) ? i+1 : 0).reduce((a,b)=>a+b,0);
+  const teamBSum = rankings.map((s,i) => TEAM_B.includes(s) ? i+1 : 0).reduce((a,b)=>a+b,0);
+  const myTeamIsA = TEAM_A.includes(mySeat);
+  const mySum = myTeamIsA ? teamASum : teamBSum;
+  const theirSum = myTeamIsA ? teamBSum : teamASum;
+
+  let title;
+  if (allMine) title = '🎉 串三户！大胜！';
+  else if (allTheirs) title = '😢 被串三户...';
+  else if (mySum < theirSum) title = '🎉 胜利！';
+  else if (mySum > theirSum) title = '😢 败了...';
+  else title = '🤝 平局';
+
+  let detail = '';
+  rankings.forEach((s, i) => {
+    const p = players.find(pp => pp.seat === s);
+    const name = p ? p.name : '?';
+    const team = TEAM_A.includes(s) ? '🔴' : '🔵';
+    const me = s === mySeat ? ' ← 你' : '';
+    detail += `${RANK_LABELS[i+1]}: ${team} ${name}${me}\n`;
+  });
+
+  document.getElementById('go-title').textContent = title;
+  document.getElementById('go-detail').textContent = detail;
+  document.getElementById('go-btn').style.display = isHost ? '' : 'none';
+  document.getElementById('gameover').classList.add('show');
+}
+
+// ============ TOAST ============
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+// ============ INIT ============
+connect();
+
+// Enter key support
+document.getElementById('input-code').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+document.getElementById('input-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('input-code').focus(); });
+</script>
+
+</body>
+</html>
