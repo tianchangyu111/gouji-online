@@ -2,11 +2,42 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 const os = require('os');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
+
+function findFirstExisting(paths) {
+  for (const p of paths) {
+    try { if (fs.existsSync(p)) return p; } catch (_) {}
+  }
+  return null;
+}
+
+function sendCustomJoker(res, name) {
+  const candidates = [
+    path.join(__dirname, 'public', 'assets', `${name}.jpg`),
+    path.join(__dirname, 'public', 'assets', `${name}.jpeg`),
+    path.join(__dirname, 'public', 'assets', `${name}.png`),
+    path.join(__dirname, `publicassets${name}.jpg`),
+    path.join(__dirname, `publicassets${name}.jpeg`),
+    path.join(__dirname, `publicassets${name}.png`),
+    path.join(__dirname, 'public', `${name}.jpg`),
+    path.join(__dirname, 'public', `${name}.jpeg`),
+    path.join(__dirname, 'public', `${name}.png`),
+    path.join(__dirname, `${name}.jpg`),
+    path.join(__dirname, `${name}.jpeg`),
+    path.join(__dirname, `${name}.png`),
+  ];
+  const found = findFirstExisting(candidates);
+  if (!found) return res.status(404).end();
+  return res.sendFile(found);
+}
+
+app.get('/joker-big-custom', (req, res) => sendCustomJoker(res, 'joker-big'));
+app.get('/joker-small-custom', (req, res) => sendCustomJoker(res, 'joker-small'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -724,6 +755,8 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
     activeNaojiWindows: [],
     naojiWindowSeq: 0,
     turnEndsAt: 0,
+    peekUses: [0,0,0,0,0,0],
+    peekMax: [0,0,0,0,0,0].map((_, i) => ((players.find(p => p.seat === i)?.name || '').trim() === '张哲' ? 3 : 0)),
   };
 }
 
@@ -756,7 +789,9 @@ function getStateForPlayer(room, seat) {
     turnEndsAt: game.turnEndsAt || 0,
     playedPoolCount: (game.playedPool || []).length,
     calledTributeSeats: room.calledTributeSeats || [false, false, false, false, false, false],
-    canPeek: (me?.name || '').trim() === '张哲',
+    peekUses: game.peekUses || [0,0,0,0,0,0],
+    peekMax: game.peekMax || [0,0,0,0,0,0],
+    canPeek: ((me?.name || '').trim() === '张哲') && game.currentPlayer !== seat && !game.finished[seat] && ((game.peekUses?.[seat] || 0) < (game.peekMax?.[seat] || 0)),
   };
 }
 
@@ -1034,12 +1069,22 @@ io.on('connection', (socket) => {
     if (room.game.finished[currentSeat]) {
       return socket.emit('error_msg', { msg: '你已经出完了，不能再验牌' });
     }
+    if (room.game.currentPlayer === currentSeat) {
+      return socket.emit('error_msg', { msg: '自己的回合不能验牌' });
+    }
+    if ((room.game.peekUses?.[currentSeat] || 0) >= (room.game.peekMax?.[currentSeat] || 0)) {
+      return socket.emit('error_msg', { msg: '验牌次数已用完' });
+    }
+
+    room.game.peekUses[currentSeat] = (room.game.peekUses[currentSeat] || 0) + 1;
 
     const leftSeat = (currentSeat + 5) % 6;
     const rightSeat = (currentSeat + 1) % 6;
 
     socket.emit('peek_result', {
       expiresAt: Date.now() + 3000,
+      uses: room.game.peekUses[currentSeat],
+      max: room.game.peekMax[currentSeat],
       sides: [
         {
           seat: leftSeat,
@@ -1055,6 +1100,8 @@ io.on('connection', (socket) => {
         },
       ],
     });
+
+    broadcastState(room);
   });
 
   socket.on('cheat_toggle', () => {
