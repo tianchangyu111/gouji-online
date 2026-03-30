@@ -359,6 +359,65 @@ body {
   margin-left: 3px;
 }
 
+.kaidian-tag {
+  font-size: 12px;
+  color: #ffdd44;
+  font-family: 'Ma Shan Zheng', cursive;
+  background: rgba(255,220,68,0.2);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,220,68,0.4);
+  animation: kaidian-flash 0.6s ease-in-out 3;
+  margin-left: 4px;
+}
+
+@keyframes kaidian-flash {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.3; text-shadow: 0 0 10px #ffdd44; }
+}
+
+.dian-badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-left: 3px;
+}
+.dian-open { color: #4ade80; background: rgba(74,222,128,0.15); }
+.dian-closed { color: #f87171; background: rgba(248,113,113,0.15); }
+
+.card.locked {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Tribute notification */
+#tribute-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+  z-index: 90; gap: 12px;
+}
+#tribute-overlay.show { display: flex; }
+#tribute-overlay h3 {
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 24px; color: var(--gold);
+  letter-spacing: 4px;
+}
+.tribute-item {
+  color: #ddd; font-size: 14px;
+  padding: 4px 0;
+  font-family: 'Ma Shan Zheng', cursive;
+}
+.tribute-item .t-type { color: var(--gold); margin-right: 6px; }
+#tribute-overlay button {
+  margin-top: 10px; padding: 8px 30px;
+  font-size: 18px; font-family: 'Ma Shan Zheng', cursive;
+  background: linear-gradient(to bottom, #d4a843, #b8922a);
+  color: #1a1a1a; border: none; border-radius: 8px; cursor: pointer;
+}
+
 /* My hand */
 #my-hand {
   position: absolute;
@@ -402,10 +461,13 @@ body {
   display: flex;
   gap: 10px;
   z-index: 20;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92vw;
 }
 
 #actions button {
-  padding: 7px 24px;
+  padding: 7px 20px;
   font-size: 16px;
   font-family: 'Ma Shan Zheng', cursive;
   border-radius: 8px;
@@ -423,7 +485,35 @@ body {
   background: rgba(0,0,0,0.4);
   color: var(--gold);
 }
+.btn-special {
+  background: rgba(20,20,20,0.7);
+  color: #f0d080;
+}
 button:disabled { opacity: 0.3; cursor: default !important; }
+
+#turn-timer {
+  position: absolute;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 21;
+  color: #fff;
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 18px;
+  background: rgba(0,0,0,0.45);
+  padding: 4px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(212,168,67,0.25);
+}
+
+#my-meta {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(212,168,67,0.15);
+  color: #ddd;
+  font-size: 11px;
+  line-height: 1.5;
+}
 
 /* Rankings */
 #rankings-panel {
@@ -532,20 +622,32 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   <div id="my-hand"></div>
 
   <!-- Actions -->
+  <div id="turn-timer">倒计时：--</div>
+
   <div id="actions">
     <button class="btn-go" id="btn-play" onclick="doPlay()" disabled>出 牌</button>
     <button class="btn-no" id="btn-pass" onclick="doPass()" disabled>过 牌</button>
+    <button class="btn-special" id="btn-naoji" onclick="doNaoji()" disabled>孬 急</button>
+    <button class="btn-special" id="btn-grab" onclick="doGrab()" disabled>抓</button>
   </div>
 
   <!-- Rankings -->
   <div id="rankings-panel">
     <h4>排名</h4>
     <div id="rank-list"></div>
+    <div id="my-meta"></div>
   </div>
 </div>
 
 <!-- Toast -->
 <div id="toast"></div>
+
+<!-- Tribute notification -->
+<div id="tribute-overlay">
+  <h3 id="tribute-title">进贡/买三</h3>
+  <div id="tribute-content"></div>
+  <button onclick="closeTribute()">确 定</button>
+</div>
 
 <!-- Game over -->
 <div id="gameover">
@@ -569,6 +671,7 @@ let myRoom = '';
 let isHost = false;
 let selectedCards = [];
 let currentState = null;
+let countdownTimer = null;
 
 // Cheat
 let _cClicks = 0, _cTimer = null;
@@ -618,6 +721,10 @@ function connect() {
 
   socket.on('error_msg', (data) => {
     toast(data.msg);
+  });
+
+  socket.on('toast_msg', (data) => {
+    if (data && data.msg) toast(data.msg);
   });
 
   socket.on('cheat_status', (data) => {
@@ -696,6 +803,8 @@ function renderPlayerList(players) {
 }
 
 // ============ GAME RENDERING ============
+let _lastShownRound = 0;
+
 function showGame(state) {
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('waiting').style.display = 'none';
@@ -707,15 +816,26 @@ function showGame(state) {
   renderMyHand(state);
   renderRankings(state);
 
-  // Enable/disable buttons
   const isMyTurn = state.currentPlayer === state.mySeat && !state.finished[state.mySeat];
   const hasTable = !!state.tablePlay;
   document.getElementById('btn-play').disabled = !isMyTurn;
   document.getElementById('btn-pass').disabled = !isMyTurn || !hasTable;
+  document.getElementById('btn-naoji').disabled = state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]);
+  document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
+  renderTimer(state);
 
-  // Show host's restart button label in game-over context
   const goBtn = document.getElementById('go-btn');
   goBtn.style.display = isHost ? '' : 'none';
+
+  // Show tribute/buySan notification once per round
+  if (state.roundNumber && state.roundNumber !== _lastShownRound) {
+    _lastShownRound = state.roundNumber;
+    const tLog = state.tributeLog || [];
+    const bLog = state.buySanLog || [];
+    if (tLog.length > 0 || bLog.length > 0) {
+      showTributeOverlay(state, tLog, bLog);
+    }
+  }
 }
 
 function getRelativeSeat(absSeat, myS) {
@@ -741,19 +861,28 @@ function renderLabels(state) {
     if (abs === state.mySeat) extra = '(我)';
     else if (isDuiTou) extra = '(对头)';
 
+    // 开点 badge
+    let dianHtml = '';
+    if (state.openedDian && state.openedDian[abs]) {
+      dianHtml = '<span class="dian-badge dian-open">已开点</span>';
+    }
+
     let statusHtml = '';
     if (state.finished[abs]) {
       const ri = state.rankings.indexOf(abs);
       statusHtml = `<div class="finish-text">${RANK_LABELS[ri+1]}</div>`;
     } else if (rel !== 0) {
-      statusHtml = `<div class="card-info">${state.handCounts[abs]}张</div>`;
+      statusHtml = `<div class="card-info">${state.handCounts[abs]}张 ${dianHtml}</div>`;
+    } else {
+      statusHtml = `<div class="card-info">${dianHtml}</div>`;
     }
 
-    // Action text
     let actionHtml = '';
     const act = state.playerActions[abs];
     if (act && act.type === 'pass') {
       actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">过</div>';
+    } else if (act && act.type === 'timeout') {
+      actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">超时</div>';
     }
 
     html += `<div class="plabel pos-${rel}">
@@ -777,8 +906,9 @@ function renderPlayedAreas(state) {
     let content = '';
     if (act && act.type === 'play' && act.cards) {
       act.cards.forEach(c => { content += cardHTML(c, true); });
-      // Check gouji
-      if (isGoujiPlayClient(act.cards)) {
+      if (act.isKaiDian) {
+        content += '<span class="kaidian-tag">开 点 !</span>';
+      } else if (isGoujiPlayClient(act.cards)) {
         content += '<span class="gouji-tag">够级</span>';
       }
     }
@@ -793,7 +923,10 @@ function renderMyHand(state) {
   const hand = state.myHand;
   if (!hand || hand.length === 0) return;
 
-  // Group by rank
+  const nonThreeCount = hand.filter(c => c.rank !== 3).length;
+  const canPlay3 = nonThreeCount === 0;
+  const isKaiDianTurn = state.canKaiDian === state.mySeat;
+
   const groups = [];
   let cur = null;
   for (const card of hand) {
@@ -809,26 +942,29 @@ function renderMyHand(state) {
     groupEl.className = 'card-group';
     const ov = group.cards.length <= 4 ? 16 : 12;
 
+    let isLocked = false;
+    if (isKaiDianTurn) {
+      isLocked = group.rank !== 4;
+    } else {
+      isLocked = (group.rank === 3 && !canPlay3) || (group.rank === 4);
+    }
+
     group.cards.forEach((card, idx) => {
       const el = createCardEl(card);
       if (idx > 0) el.style.marginLeft = (-44 + ov) + 'px';
       if (selectedCards.some(c => c.id === card.id)) el.classList.add('selected');
+      if (isLocked) el.classList.add('locked');
 
-      el.addEventListener('click', () => toggleSelect(card));
-      // Double tap = select whole group
-      let lastTap = 0;
-      el.addEventListener('touchend', (e) => {
-        const now = Date.now();
-        if (now - lastTap < 300) {
-          e.preventDefault();
-          toggleGroupSelect(group.cards);
-        }
-        lastTap = now;
-      });
-      el.addEventListener('dblclick', (e) => {
-        e.preventDefault();
-        toggleGroupSelect(group.cards);
-      });
+      if (!isLocked) {
+        el.addEventListener('click', () => toggleSelect(card));
+        let lastTap = 0;
+        el.addEventListener('touchend', (e) => {
+          const now = Date.now();
+          if (now - lastTap < 300) { e.preventDefault(); toggleGroupSelect(group.cards); }
+          lastTap = now;
+        });
+        el.addEventListener('dblclick', (e) => { e.preventDefault(); toggleGroupSelect(group.cards); });
+      }
 
       groupEl.appendChild(el);
     });
@@ -838,6 +974,15 @@ function renderMyHand(state) {
       badge.className = 'group-count';
       badge.textContent = '×' + group.cards.length;
       groupEl.appendChild(badge);
+    }
+
+    if (isLocked) {
+      const lock = document.createElement('div');
+      lock.className = 'group-count';
+      lock.style.color = '#f87171';
+      if (isKaiDianTurn && group.rank !== 4) lock.textContent = '🔒仅4';
+      else lock.textContent = group.rank === 3 ? '🔒末手' : '🔒开点';
+      groupEl.appendChild(lock);
     }
 
     container.appendChild(groupEl);
@@ -855,6 +1000,13 @@ function renderRankings(state) {
     const team = TEAM_A.includes(s) ? '🔴' : '🔵';
     return `<div style="font-size:12px;padding:1px 0">${RANK_LABELS[i+1]} ${team} ${name}</div>`;
   }).join('');
+
+  const myMeta = document.getElementById('my-meta');
+  if (myMeta) {
+    const used = state.naojiUses?.[state.mySeat] ?? 0;
+    const max = state.naojiMax?.[state.mySeat] ?? 5;
+    myMeta.innerHTML = `孬急：${used}/${max}<br>已出牌池：${state.playedPoolCount || 0}张`;
+  }
 }
 
 // ============ CARD HELPERS ============
@@ -932,6 +1084,32 @@ function doPass() {
   selectedCards = [];
 }
 
+
+function renderTimer(state) {
+  const el = document.getElementById('turn-timer');
+  if (!el) return;
+  clearInterval(countdownTimer);
+  const tick = () => {
+    if (!currentState || !currentState.turnEndsAt) {
+      el.textContent = '倒计时：--';
+      return;
+    }
+    const left = Math.max(0, Math.ceil((currentState.turnEndsAt - Date.now()) / 1000));
+    const isMine = currentState.currentPlayer === currentState.mySeat && !currentState.finished[currentState.mySeat];
+    el.textContent = `倒计时：${left}s${isMine ? '（你的回合）' : ''}`;
+  };
+  tick();
+  countdownTimer = setInterval(tick, 250);
+}
+
+function doNaoji() {
+  socket.emit('naoji');
+}
+
+function doGrab() {
+  socket.emit('grab');
+}
+
 // ============ GAME OVER ============
 function showGameOver(data) {
   const { rankings, players } = data;
@@ -968,6 +1146,39 @@ function showGameOver(data) {
   document.getElementById('go-detail').textContent = detail;
   document.getElementById('go-btn').style.display = isHost ? '' : 'none';
   document.getElementById('gameover').classList.add('show');
+}
+
+
+function showTributeOverlay(state, tLog, bLog) {
+  const overlay = document.getElementById('tribute-overlay');
+  const title = document.getElementById('tribute-title');
+  const content = document.getElementById('tribute-content');
+
+  const lines = [];
+  if (tLog && tLog.length) {
+    title.textContent = '进贡 / 还贡';
+    tLog.forEach(item => {
+      lines.push(`<div class="tribute-item"><span class="t-type">${item.type}</span>${getPlayerName(state, item.from)} → ${getPlayerName(state, item.to)} ：进 ${Array.isArray(item.give) ? item.give.join('、') : ''}　还 ${Array.isArray(item.back) ? item.back.join('、') : ''}</div>`);
+    });
+  }
+  if (bLog && bLog.length) {
+    if (!tLog || !tLog.length) title.textContent = '买三';
+    bLog.forEach(item => {
+      if (item.seller === -1) {
+        lines.push(`<div class="tribute-item"><span class="t-type">买三</span>${getPlayerName(state, item.buyer)}：${item.note || '跳过'}</div>`);
+      } else {
+        lines.push(`<div class="tribute-item"><span class="t-type">买三</span>${getPlayerName(state, item.buyer)} 向 ${getPlayerName(state, item.seller)} 买3，支付：${item.paid}</div>`);
+      }
+    });
+  }
+
+  if (!lines.length) return;
+  content.innerHTML = lines.join('');
+  overlay.classList.add('show');
+}
+
+function closeTribute() {
+  document.getElementById('tribute-overlay').classList.remove('show');
 }
 
 // ============ TOAST ============
