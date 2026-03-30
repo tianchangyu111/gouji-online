@@ -763,6 +763,87 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   .peek-grid { grid-template-columns: 1fr; }
 }
 
+
+
+#strategist-panel {
+  position: fixed;
+  right: 10px;
+  top: 72px;
+  width: min(360px, 34vw);
+  max-height: 52vh;
+  overflow: auto;
+  display: none;
+  z-index: 125;
+  background: linear-gradient(to bottom, rgba(12,22,16,0.96), rgba(8,14,10,0.98));
+  border: 1px solid rgba(212,168,67,0.28);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+  padding: 12px;
+}
+#strategist-panel.show { display: block; }
+#strategist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+#strategist-head h3 {
+  color: var(--gold-light);
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 22px;
+  letter-spacing: 3px;
+}
+#strategist-close {
+  border: 1px solid rgba(212,168,67,0.35);
+  background: rgba(255,255,255,0.06);
+  color: #f8e5b0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: 'Ma Shan Zheng', cursive;
+}
+.strategist-note {
+  font-size: 12px;
+  color: rgba(255,255,255,0.62);
+  margin-bottom: 8px;
+}
+.strategist-side {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(212,168,67,0.12);
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 10px;
+}
+.strategist-side-title {
+  color: #fff;
+  font-size: 15px;
+  margin-bottom: 8px;
+  font-family: 'Ma Shan Zheng', cursive;
+}
+.strategist-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+#strategist-panel .card {
+  width: 34px;
+  height: 48px;
+  font-size: 10px;
+  border-radius: 6px;
+}
+#strategist-panel .card .rank { font-size: 9px; }
+#strategist-panel .card .suit { font-size: 11px; }
+#strategist-panel .joker-text { font-size: 8px; left: 4px; bottom: 4px; }
+
+@media (max-width: 900px) {
+  #strategist-panel {
+    width: min(72vw, 340px);
+    top: 64px;
+    right: 6px;
+    max-height: 48vh;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -810,11 +891,15 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
     <div id="actions">
       <button class="btn-go" id="btn-play" onclick="doPlay()" disabled>出 牌</button>
+      <button class="btn-no" id="btn-normal4" onclick="doNormal4()" style="display:none" disabled>平 出 4</button>
+      <button class="btn-alert" id="btn-kaidian" onclick="doKaidian()" style="display:none" disabled>开 点 4</button>
       <button class="btn-alert" id="btn-callgong" onclick="doCallGong()" style="display:none" disabled>叫 贡 4</button>
       <button class="btn-no" id="btn-pass" onclick="doPass()" disabled>过 牌</button>
+      <button class="btn-no" id="btn-let" onclick="doLet()" style="display:none" disabled>让 牌</button>
       <button class="btn-special" id="btn-naoji" onclick="doNaoji()" disabled>孬 急</button>
       <button class="btn-special" id="btn-grab" onclick="doGrab()" disabled>抓</button>
       <button class="btn-special" id="btn-peek" onclick="doPeek()" style="display:none" disabled>验 牌</button>
+      <button class="btn-special" id="btn-strategist" onclick="doStrategist()" style="display:none" disabled>军 师</button>
     </div>
 
     <div id="my-hand-wrap">
@@ -833,6 +918,17 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   <button onclick="closeTribute()">确 定</button>
 </div>
 
+
+
+
+<div id="strategist-panel">
+  <div id="strategist-head">
+    <h3>狗头军师</h3>
+    <button id="strategist-close" onclick="hideStrategistPanel()">收起</button>
+  </div>
+  <div class="strategist-note" id="strategist-note">陈杰走后可随时查看剩余队友的牌</div>
+  <div id="strategist-body"></div>
+</div>
 
 <div id="peek-overlay">
   <div id="peek-box">
@@ -1090,12 +1186,17 @@ function showGame(state) {
   document.getElementById('btn-kaidian').style.display = isKaiDianTurn ? '' : 'none';
   document.getElementById('btn-kaidian').disabled = !isKaiDianTurn;
   document.getElementById('btn-pass').disabled = !isMyTurn || (!hasTable && !isKaiDianTurn);
+  document.getElementById('btn-let').style.display = state.canLet ? '' : 'none';
+  document.getElementById('btn-let').disabled = !state.canLet;
   document.getElementById('btn-naoji').disabled = state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]);
   document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
   document.getElementById('btn-callgong').style.display = isKaiDianTurn ? '' : 'none';
   document.getElementById('btn-callgong').disabled = !isKaiDianTurn;
   document.getElementById('btn-peek').style.display = (state.peekMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
   document.getElementById('btn-peek').disabled = !state.canPeek || state.finished[state.mySeat];
+  document.getElementById('btn-strategist').style.display = state.canStrategist ? '' : 'none';
+  document.getElementById('btn-strategist').disabled = !state.canStrategist;
+  if (!state.canStrategist) hideStrategistPanel();
   renderTimer(state);
 
   const becameMyTurn = state.currentPlayer === state.mySeat && lastTurnPlayer !== state.mySeat;
@@ -1107,7 +1208,10 @@ function showGame(state) {
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
     const peekText = peekMax > 0 ? `　|　验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
-    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}`;
+    const strategistText = state.canStrategist ? `　|　狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
+    const tributeText = `　|　点贡:${state.dianTributeDebt?.[state.mySeat] ?? 0} 烧贡:${state.burnTributeDebt?.[state.mySeat] ?? 0} 闷贡:${state.menTributeDebt?.[state.mySeat] ?? 0}`;
+    const letText = state.canLet ? '　|　可让牌' : '';
+    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}`;
   }
 
   const goBtn = document.getElementById('go-btn');
@@ -1170,6 +1274,8 @@ function renderLabels(state) {
     const act = state.playerActions[abs];
     if (act && act.type === 'pass') {
       actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">过</div>';
+    } else if (act && act.type === 'yield') {
+      actionHtml = '<div class="action-text" style="color:rgba(255,220,120,0.8)">让</div>';
     } else if (act && act.type === 'timeout') {
       actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">超时</div>';
     }
@@ -1301,7 +1407,8 @@ function renderRankings(state) {
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
     const peekTxt = peekMax > 0 ? `<br>验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
-    myMeta.innerHTML = `孬急：${used}/${max}${peekTxt}`;
+    const strategistTxt = state.canStrategist ? `<br>狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
+    myMeta.innerHTML = `孬急：${used}/${max}${peekTxt}${strategistTxt}`;
   }
 }
 
@@ -1398,6 +1505,10 @@ function doPass() {
   selectedCards = [];
 }
 
+function doLet() {
+  socket.emit('let_teammate');
+}
+
 function renderTimer(state) {
   const el = document.getElementById('turn-timer');
   if (!el) return;
@@ -1425,6 +1536,10 @@ function doGrab() {
 
 function doPeek() {
   socket.emit('peek_neighbors');
+}
+
+function doStrategist() {
+  socket.emit('strategist_view_teammates');
 }
 
 // ============ GAME OVER ============
@@ -1495,6 +1610,26 @@ function showPeekOverlay(data) {
 
 function hidePeekOverlay() {
   document.getElementById('peek-overlay')?.classList.remove('show');
+}
+
+function showStrategistPanel(data) {
+  const panel = document.getElementById('strategist-panel');
+  const body = document.getElementById('strategist-body');
+  const note = document.getElementById('strategist-note');
+  if (!panel || !body) return;
+  const mates = data?.teammates || [];
+  body.innerHTML = mates.map(item => `
+    <div class="strategist-side">
+      <div class="strategist-side-title">队友 · ${item.name}（${item.cards.length}张）</div>
+      <div class="strategist-cards">${item.cards.map(card => cardHTML(card, true)).join('')}</div>
+    </div>
+  `).join('') || '<div class="strategist-note">当前没有剩余队友可查看</div>';
+  if (note) note.textContent = '可随时刷新，不会遮住桌面中央的出牌';
+  panel.classList.add('show');
+}
+
+function hideStrategistPanel() {
+  document.getElementById('strategist-panel')?.classList.remove('show');
 }
 
 function showTributeOverlay(state, tLog, bLog) {

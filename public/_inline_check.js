@@ -237,12 +237,17 @@ function showGame(state) {
   document.getElementById('btn-kaidian').style.display = isKaiDianTurn ? '' : 'none';
   document.getElementById('btn-kaidian').disabled = !isKaiDianTurn;
   document.getElementById('btn-pass').disabled = !isMyTurn || (!hasTable && !isKaiDianTurn);
+  document.getElementById('btn-let').style.display = state.canLet ? '' : 'none';
+  document.getElementById('btn-let').disabled = !state.canLet;
   document.getElementById('btn-naoji').disabled = state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]);
   document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
   document.getElementById('btn-callgong').style.display = isKaiDianTurn ? '' : 'none';
   document.getElementById('btn-callgong').disabled = !isKaiDianTurn;
   document.getElementById('btn-peek').style.display = (state.peekMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
   document.getElementById('btn-peek').disabled = !state.canPeek || state.finished[state.mySeat];
+  document.getElementById('btn-strategist').style.display = state.canStrategist ? '' : 'none';
+  document.getElementById('btn-strategist').disabled = !state.canStrategist;
+  if (!state.canStrategist) hideStrategistPanel();
   renderTimer(state);
 
   const becameMyTurn = state.currentPlayer === state.mySeat && lastTurnPlayer !== state.mySeat;
@@ -254,7 +259,10 @@ function showGame(state) {
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
     const peekText = peekMax > 0 ? `　|　验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
-    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}`;
+    const strategistText = state.canStrategist ? `　|　狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
+    const tributeText = `　|　点贡:${state.dianTributeDebt?.[state.mySeat] ?? 0} 烧贡:${state.burnTributeDebt?.[state.mySeat] ?? 0} 闷贡:${state.menTributeDebt?.[state.mySeat] ?? 0}`;
+    const letText = state.canLet ? '　|　可让牌' : '';
+    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}`;
   }
 
   const goBtn = document.getElementById('go-btn');
@@ -317,6 +325,8 @@ function renderLabels(state) {
     const act = state.playerActions[abs];
     if (act && act.type === 'pass') {
       actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">过</div>';
+    } else if (act && act.type === 'yield') {
+      actionHtml = '<div class="action-text" style="color:rgba(255,220,120,0.8)">让</div>';
     } else if (act && act.type === 'timeout') {
       actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">超时</div>';
     }
@@ -448,7 +458,8 @@ function renderRankings(state) {
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
     const peekTxt = peekMax > 0 ? `<br>验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
-    myMeta.innerHTML = `孬急：${used}/${max}${peekTxt}`;
+    const strategistTxt = state.canStrategist ? `<br>狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
+    myMeta.innerHTML = `孬急：${used}/${max}${peekTxt}${strategistTxt}`;
   }
 }
 
@@ -545,6 +556,10 @@ function doPass() {
   selectedCards = [];
 }
 
+function doLet() {
+  socket.emit('let_teammate');
+}
+
 function renderTimer(state) {
   const el = document.getElementById('turn-timer');
   if (!el) return;
@@ -572,6 +587,10 @@ function doGrab() {
 
 function doPeek() {
   socket.emit('peek_neighbors');
+}
+
+function doStrategist() {
+  socket.emit('strategist_view_teammates');
 }
 
 // ============ GAME OVER ============
@@ -642,6 +661,26 @@ function showPeekOverlay(data) {
 
 function hidePeekOverlay() {
   document.getElementById('peek-overlay')?.classList.remove('show');
+}
+
+function showStrategistPanel(data) {
+  const panel = document.getElementById('strategist-panel');
+  const body = document.getElementById('strategist-body');
+  const note = document.getElementById('strategist-note');
+  if (!panel || !body) return;
+  const mates = data?.teammates || [];
+  body.innerHTML = mates.map(item => `
+    <div class="strategist-side">
+      <div class="strategist-side-title">队友 · ${item.name}（${item.cards.length}张）</div>
+      <div class="strategist-cards">${item.cards.map(card => cardHTML(card, true)).join('')}</div>
+    </div>
+  `).join('') || '<div class="strategist-note">当前没有剩余队友可查看</div>';
+  if (note) note.textContent = '可随时刷新，不会遮住桌面中央的出牌';
+  panel.classList.add('show');
+}
+
+function hideStrategistPanel() {
+  document.getElementById('strategist-panel')?.classList.remove('show');
 }
 
 function showTributeOverlay(state, tLog, bLog) {
