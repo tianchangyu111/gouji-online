@@ -504,6 +504,7 @@ function processPeek(room, seat) {
     uses: game.peekUses[seat],
     max: game.peekMax[seat],
     expiresAt: now + 3000,
+    displayMs: 3000,
     sides: [
       {
         seat: leftSeat,
@@ -613,22 +614,27 @@ function deal(cheatSeat = -1, luckySeat = -1) {
 // ============ ANALYZE PLAY ============
 function analyzePlay(cards) {
   if (!cards || cards.length === 0) return null;
-  // Base rank cards are only 3-A. 2 and jokers are hangers / specials.
   const normals = cards.filter(c => c.rank >= 3 && c.rank <= 14);
   const twos = cards.filter(c => c.rank === 15).length;
   const smallJ = cards.filter(c => c.rank === 16).length;
   const bigJ = cards.filter(c => c.rank === 17).length;
 
-  // Pure 2 / pure jokers can be played alone.
-  // Mixed 2 + joker without a base rank is invalid.
   if (normals.length === 0) {
-    if (twos > 0 && smallJ === 0 && bigJ === 0) {
-      return { count: cards.length, baseRank: 15, baseCount: twos, coreCount: twos, flowerCount: 0, hasJoker: false, bigJokers: 0, smallJokers: 0, twos };
-    }
-    if (twos === 0 && (smallJ > 0 || bigJ > 0)) {
-      return { count: cards.length, baseRank: bigJ > 0 ? 17 : 16, baseCount: 0, coreCount: bigJ + smallJ, flowerCount: 0, hasJoker: true, jokerLevel: bigJ > 0 ? 17 : 16, bigJokers: bigJ, smallJokers: smallJ, twos: 0 };
-    }
-    return null;
+    const totalSpecial = twos + smallJ + bigJ;
+    if (totalSpecial === 0) return null;
+    const baseRank = bigJ > 0 ? 17 : (smallJ > 0 ? 16 : 15);
+    return {
+      count: cards.length,
+      baseRank,
+      baseCount: 0,
+      coreCount: 0,
+      flowerCount: totalSpecial,
+      hasJoker: (smallJ + bigJ) > 0,
+      bigJokers: bigJ,
+      smallJokers: smallJ,
+      twos,
+      specialOnly: true,
+    };
   }
 
   const baseRank = normals[0].rank;
@@ -643,12 +649,18 @@ function analyzePlay(cards) {
     hasJoker: (smallJ + bigJ) > 0,
     bigJokers: bigJ,
     smallJokers: smallJ,
-    twos
+    twos,
+    specialOnly: false,
   };
 }
 
 function isValidPlay(cards) {
   return analyzePlay(cards) !== null;
+}
+
+function isSpecialOnlyPlay(input) {
+  const a = input && input.count !== undefined ? input : analyzePlay(input);
+  return !!a && !!a.specialOnly;
 }
 
 function isExactlyAllRank(cards, rank) {
@@ -684,10 +696,18 @@ function isGoujiPlay(cards) {
 function isShaoPlay(cards) {
   const a = analyzePlay(cards);
   if (!a) return false;
+  if (a.specialOnly) return false;
   if (a.flowerCount > 0) return true;
-  if (a.baseRank >= 16) return true;
-  if (a.baseRank === 15) return true;
+  if (a.baseRank >= 16) return false;
+  if (a.baseRank === 15) return false;
   return a.baseCount >= goujiThreshold(a.baseRank);
+}
+
+function compareSpecialOnly(a, t) {
+  if ((a.bigJokers || 0) !== (t.bigJokers || 0)) return (a.bigJokers || 0) > (t.bigJokers || 0) ? 1 : -1;
+  if ((a.smallJokers || 0) !== (t.smallJokers || 0)) return (a.smallJokers || 0) > (t.smallJokers || 0) ? 1 : -1;
+  if ((a.twos || 0) !== (t.twos || 0)) return (a.twos || 0) > (t.twos || 0) ? 1 : -1;
+  return 0;
 }
 
 function canBeat(cards, tableCards) {
@@ -697,12 +717,17 @@ function canBeat(cards, tableCards) {
 
   if (t.count === 1 && (t.bigJokers || 0) === 1 && (a.bigJokers || 0) === 2 && cards.length === 2) return true;
   if (a.count !== t.count) return false;
-  if (a.coreCount !== t.coreCount) return a.coreCount > t.coreCount;
+
+  if (a.specialOnly && t.specialOnly) return compareSpecialOnly(a, t) > 0;
+  if (a.specialOnly && !t.specialOnly) return a.baseRank > t.baseRank;
+  if (!a.specialOnly && t.specialOnly) return a.baseRank > t.baseRank;
+
+  if (a.baseRank !== t.baseRank) return a.baseRank > t.baseRank;
+  if ((a.baseCount || 0) !== (t.baseCount || 0)) return (a.baseCount || 0) > (t.baseCount || 0);
   if ((a.bigJokers || 0) !== (t.bigJokers || 0)) return (a.bigJokers || 0) > (t.bigJokers || 0);
   if ((a.smallJokers || 0) !== (t.smallJokers || 0)) return (a.smallJokers || 0) > (t.smallJokers || 0);
   if ((a.twos || 0) !== (t.twos || 0)) return (a.twos || 0) > (t.twos || 0);
-  if ((a.baseCount || 0) !== (t.baseCount || 0)) return (a.baseCount || 0) > (t.baseCount || 0);
-  return a.baseRank > t.baseRank;
+  return false;
 }
 
 function makeVirtualCards(baseRank, countBase, countTwo, countSmall, countBig) {
@@ -723,18 +748,15 @@ function handCanBeatPlay(hand, tableCards) {
   if (target.count === 1 && (target.bigJokers || 0) === 1 && (cnt[17] || 0) >= 2) return true;
   const need = target.count;
 
-  if (target.baseRank >= 16 || target.baseRank === 15) {
-    if ((cnt[17] || 0) >= need) {
-      const cards = makeVirtualCards(17, 0, 0, 0, need);
-      if (canBeat(cards, tableCards)) return true;
-    }
-    if ((cnt[16] || 0) >= need) {
-      const cards = makeVirtualCards(16, 0, 0, need, 0);
-      if (canBeat(cards, tableCards)) return true;
-    }
-    if ((cnt[15] || 0) >= need) {
-      const cards = makeVirtualCards(15, 0, need, 0, 0);
-      if (canBeat(cards, tableCards)) return true;
+  if (target.specialOnly || target.baseRank >= 16 || target.baseRank === 15) {
+    for (let useBig = 0; useBig <= Math.min(cnt[17] || 0, need); useBig++) {
+      for (let useSmall = 0; useSmall <= Math.min(cnt[16] || 0, need - useBig); useSmall++) {
+        const useTwo = need - useBig - useSmall;
+        if (useTwo < 0 || useTwo > (cnt[15] || 0)) continue;
+        if (useBig + useSmall + useTwo !== need) continue;
+        const cards = makeVirtualCards(15, 0, useTwo, useSmall, useBig);
+        if (canBeat(cards, tableCards)) return true;
+      }
     }
     return false;
   }
@@ -777,6 +799,23 @@ function nextActiveSeat(game, fromSeat) {
     if (!game.finished[s] && !game.passedThisRound.includes(s)) return s;
   }
   return -1;
+}
+
+function nextActiveSeatIgnorePass(game, fromSeat) {
+  for (let i = 1; i <= 6; i++) {
+    const s = (fromSeat - i + 6) % 6;
+    if (!game.finished[s]) return s;
+  }
+  return -1;
+}
+
+function pickCounterClockwiseStarter(game, preferredSeat) {
+  if (!game) return -1;
+  if (preferredSeat >= 0 && !game.finished[preferredSeat]) return preferredSeat;
+  const next = nextActiveSeatIgnorePass(game, preferredSeat >= 0 ? preferredSeat : 0);
+  if (next >= 0) return next;
+  const active = activeSeats(game);
+  return active.length ? active[0] : -1;
 }
 
 function activeSeats(game) {
@@ -859,7 +898,7 @@ function ensureTurnSeatValid(room) {
     if (!game.finished[game.currentPlayer] && !maybeFailActiveBurnAtTurnStart(room, game.currentPlayer)) break;
     if (maybeGameOver(game)) break;
     const next = nextActiveSeat(game, game.currentPlayer);
-    game.currentPlayer = next === -1 ? activeSeats(game)[0] ?? -1 : next;
+    game.currentPlayer = next === -1 ? pickCounterClockwiseStarter(game, game.currentPlayer) : next;
   }
 }
 
@@ -882,7 +921,7 @@ function markBurnFailure(room, seat, bySeat = -1) {
   game.playerActions[seat] = { type: 'burn_fail', bySeat };
   game.passedThisRound = game.passedThisRound.filter(s => s !== seat);
   if (game.currentPlayer === seat) {
-    const next = activeSeats(game)[0];
+    const next = pickCounterClockwiseStarter(game, seat);
     game.currentPlayer = next ?? -1;
   }
   if (game.menCandidate?.seat === seat) game.menCandidate = null;
@@ -973,7 +1012,7 @@ function stabilizeCurrentPlayer(game) {
   if (!game) return;
   if (game.currentPlayer >= 0 && game.finished[game.currentPlayer]) {
     const active = activeSeats(game);
-    if (active.length > 0) game.currentPlayer = active[0];
+    if (active.length > 0) game.currentPlayer = pickCounterClockwiseStarter(game, game.currentPlayer);
   }
 }
 
@@ -1328,7 +1367,7 @@ function executeFourChoice(room, seat, cards, kind = 'normal4') {
   maybeFinishPlayer(game, seat, room);
   if (maybeGameOver(game)) return { ok: true, gameOver: true };
   const logs = resolveRoundEffects(room);
-  const nextStarter = game.finished[seat] ? activeSeats(game)[0] : seat;
+  const nextStarter = game.finished[seat] ? pickCounterClockwiseStarter(game, seat) : seat;
   const res = resetRound(game, nextStarter);
   return { ...res, roundEffectLogs: logs, autoKind: kind };
 }
@@ -1368,9 +1407,10 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   const burnVictimSeat = respondingToBurn ? game.activeBurns[prevPlay.player].victim : -1;
   const isOppositeResponse = !!prevPlay && respondingToBurn && seat === burnOppSeat;
   const isVictimFanShao = !!prevPlay && respondingToBurn && seat === burnVictimSeat;
+  const specialOnlyBypass = !!prevPlay && !respondingToBurn && !isResponderOpposite(prevPlay.player, seat) && goujiRestricted && isSpecialOnlyPlay(analyzed);
   const isBurnResponse = !!prevPlay && activeSeats(game).length >= 5 && (
     (respondingToBurn && isVictimFanShao) ||
-    (!respondingToBurn && !isResponderOpposite(prevPlay.player, seat) && goujiRestricted)
+    (!respondingToBurn && !isResponderOpposite(prevPlay.player, seat) && goujiRestricted && !specialOnlyBypass)
   );
 
   if (respondingToBurn && !getEligibleRespondersToBurn(game, prevPlay.player).includes(seat)) {
@@ -1434,7 +1474,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
       game.currentPlayer = responders[0];
       return { ok: true };
     }
-    const starter = game.finished[seat] ? (activeSeats(game)[0] ?? -1) : seat;
+    const starter = game.finished[seat] ? pickCounterClockwiseStarter(game, seat) : seat;
     const logs = resolveRoundEffects(room);
     const res = resetRound(game, starter);
     return { ...res, roundEffectLogs: logs };
@@ -1455,14 +1495,14 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (game.finished[seat]) {
     const next = nextActiveSeat(game, seat);
     const logs = resolveRoundEffects(room);
-    const res = resetRound(game, next === -1 ? activeSeats(game)[0] : next);
+    const res = resetRound(game, next === -1 ? pickCounterClockwiseStarter(game, seat) : next);
     return { ...res, roundEffectLogs: logs };
   }
 
   const next = nextActiveSeat(game, seat);
   if (next === -1 || next === game.tablePlay.player) {
     const logs = resolveRoundEffects(room);
-    const starter = game.finished[seat] ? activeSeats(game)[0] : seat;
+    const starter = game.finished[seat] ? pickCounterClockwiseStarter(game, seat) : seat;
     const res = resetRound(game, starter);
     return { ...res, roundEffectLogs: logs };
   }
@@ -1480,7 +1520,7 @@ function processPass(room, seat) {
     game.lostKaiDian[seat] = true;
     room.forceKaiDianThisRound[seat] = false;
     const logs = resolveRoundEffects(room);
-    const starter = game.finished[seat] ? activeSeats(game)[0] : seat;
+    const starter = game.finished[seat] ? pickCounterClockwiseStarter(game, seat) : seat;
     const res = resetRound(game, starter);
     return { ...res, roundEffectLogs: logs };
   }
@@ -1497,7 +1537,7 @@ function processPass(room, seat) {
       game.currentPlayer = responders[0];
       return { ok: true };
     }
-    const starter = game.finished[burnerSeat] ? (activeSeats(game)[0] ?? -1) : burnerSeat;
+    const starter = game.finished[burnerSeat] ? pickCounterClockwiseStarter(game, burnerSeat) : burnerSeat;
     const logs = resolveRoundEffects(room);
     const res = resetRound(game, starter);
     return { ...res, roundEffectLogs: logs };
@@ -1525,7 +1565,7 @@ function processPass(room, seat) {
         return { ok: true };
       }
       const logs = resolveRoundEffects(room);
-      const starter = game.finished[attacker] ? activeSeats(game)[0] : attacker;
+      const starter = game.finished[attacker] ? pickCounterClockwiseStarter(game, attacker) : attacker;
       const res = resetRound(game, starter);
       return { ...res, roundEffectLogs: logs };
     }
@@ -1540,7 +1580,7 @@ function processPass(room, seat) {
       game.passedThisRound = game.passedThisRound.filter(s => s !== game.letSeat);
       return { ok: true };
     }
-    const baseStarter = game.finished[game.tablePlay.player] ? active[0] : game.tablePlay.player;
+    const baseStarter = game.finished[game.tablePlay.player] ? pickCounterClockwiseStarter(game, game.tablePlay.player) : game.tablePlay.player;
     const logs = resolveRoundEffects(room);
     const res = resetRound(game, baseStarter);
     return { ...res, roundEffectLogs: logs };
@@ -1554,7 +1594,7 @@ function processPass(room, seat) {
       game.passedThisRound = game.passedThisRound.filter(s => s !== game.letSeat);
       return { ok: true };
     }
-    const baseStarter = game.finished[game.tablePlay.player] ? active[0] : game.tablePlay.player;
+    const baseStarter = game.finished[game.tablePlay.player] ? pickCounterClockwiseStarter(game, game.tablePlay.player) : game.tablePlay.player;
     const logs = resolveRoundEffects(room);
     const res = resetRound(game, baseStarter);
     return { ...res, roundEffectLogs: logs };

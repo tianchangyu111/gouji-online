@@ -380,13 +380,13 @@ body {
 
 /* Enlarged played cards */
 .played-area .card {
-  width: 84px; height: 122px;
-  font-size: 20px; cursor: default;
-  border-radius: 12px;
+  width: 68px; height: 98px;
+  font-size: 17px; cursor: default;
+  border-radius: 11px;
 }
-.played-area .card .rank { font-size: 22px; }
-.played-area .card .suit { font-size: 28px; margin-top: 6px; }
-.played-area .card .joker-text { font-size: 14px; left: 8px; bottom: 8px; padding: 2px 6px; }
+.played-area .card .rank { font-size: 18px; }
+.played-area .card .suit { font-size: 23px; margin-top: 5px; }
+.played-area .card .joker-text { font-size: 12px; left: 6px; bottom: 6px; padding: 2px 5px; }
 .played-area .card.selected { transform: none; }
 
 .gouji-tag {
@@ -611,10 +611,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   #turn-timer { font-size: 18px; }
   #actions button { min-width: 78px; padding: 8px 14px; font-size: 16px; letter-spacing: 2px; }
   .played-area { max-width: min(84vw, 760px); gap: 4px; }
-  .played-area .card { width: 72px; height: 104px; border-radius: 10px; }
-  .played-area .card .rank { font-size: 19px; }
-  .played-area .card .suit { font-size: 23px; margin-top: 5px; }
-  .played-area .card .joker-text { font-size: 12px; left: 6px; bottom: 6px; }
+  .played-area .card { width: 60px; height: 86px; border-radius: 9px; }
+  .played-area .card .rank { font-size: 16px; }
+  .played-area .card .suit { font-size: 20px; margin-top: 4px; }
+  .played-area .card .joker-text { font-size: 11px; left: 5px; bottom: 5px; }
   .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 34px); }
   .played-area.ppos-1 { right: 3%; }
   .played-area.ppos-2 { right: 3%; }
@@ -633,10 +633,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   .card { width: 46px; height: 68px; border-radius: 8px; }
   .card-group { min-height: 90px; }
   .played-area { max-width: 92vw; gap: 3px; }
-  .played-area .card { width: 62px; height: 90px; border-radius: 9px; }
-  .played-area .card .rank { font-size: 16px; }
-  .played-area .card .suit { font-size: 20px; margin-top: 4px; }
-  .played-area .card .joker-text { font-size: 10px; left: 5px; bottom: 5px; }
+  .played-area .card { width: 52px; height: 76px; border-radius: 8px; }
+  .played-area .card .rank { font-size: 14px; }
+  .played-area .card .suit { font-size: 17px; margin-top: 3px; }
+  .played-area .card .joker-text { font-size: 9px; left: 4px; bottom: 4px; }
   .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 28px); }
   .played-area.ppos-1 { right: 2%; }
   .played-area.ppos-2 { right: 2%; }
@@ -898,7 +898,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
     <div id="actions">
       <button class="btn-go" id="btn-play" onclick="doPlay()" disabled>出 牌</button>
       <button class="btn-no" id="btn-normal4" onclick="doNormal4()" style="display:none" disabled>平 出 4</button>
-      <button class="btn-alert" id="btn-kaidian" onclick="doKaidian()" style="display:none" disabled>开 点 4</button>
+      <button class="btn-alert" id="btn-kaidian" onclick="doKaiDian()" style="display:none" disabled>开 点 4</button>
       <button class="btn-alert" id="btn-callgong" onclick="doCallGong()" style="display:none" disabled>叫 贡 4</button>
       <button class="btn-no" id="btn-pass" onclick="doPass()" disabled>过 牌</button>
       <button class="btn-no" id="btn-let" onclick="doLet()" style="display:none" disabled>让 牌</button>
@@ -1019,9 +1019,9 @@ function playCaughtSound() {
 
 function playCardSound() {
   playToneSequence([
-    { freq: 560, at: 0.00, dur: 0.04, type: 'triangle' },
-    { freq: 760, at: 0.05, dur: 0.05, type: 'triangle' },
-  ], 0.02);
+    { freq: 220, at: 0.00, dur: 0.035, type: 'square' },
+    { freq: 140, at: 0.03, dur: 0.045, type: 'triangle' },
+  ], 0.026);
 }
 
 function playGoujiSound() {
@@ -1048,16 +1048,10 @@ function playJieShaoSound() {
 }
 
 function speakTurnPrompt() {
-  try {
-    if (!audioUnlocked || !('speechSynthesis' in window)) return;
-    const ut = new SpeechSynthesisUtterance('出牌不要等');
-    ut.lang = 'zh-CN';
-    ut.rate = 1.08;
-    ut.pitch = 1.0;
-    ut.volume = 0.9;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(ut);
-  } catch (_) {}
+  playToneSequence([
+    { freq: 740, at: 0.00, dur: 0.05, type: 'triangle' },
+    { freq: 880, at: 0.06, dur: 0.05, type: 'triangle' },
+  ], 0.016);
 }
 
 function onTitleClick() {
@@ -1545,11 +1539,15 @@ function getSuggestedSelectCards(card) {
   }
 
   if (isResponseTurn && targetCount > 1) {
-    // Same-rank response first.
-    if (rankCards.length >= targetCount) return rankCards.slice(0, targetCount);
-
-    // For 3-A, auto-fill with 2 / jokers as hangers so one tap can make a valid combo.
+    if ([15,16,17].includes(card.rank)) {
+      if (rankCards.length >= targetCount) return rankCards.slice(0, targetCount);
+      const fillers = hand.filter(c => [15,16,17].includes(c.rank) && c.rank !== card.rank);
+      if (rankCards.length + fillers.length >= targetCount) {
+        return [...rankCards, ...fillers.slice(0, targetCount - rankCards.length)];
+      }
+    }
     if (card.rank >= 3 && card.rank <= 14) {
+      if (rankCards.length >= targetCount) return rankCards.slice(0, targetCount);
       const fillers = hand.filter(c => [15,16,17].includes(c.rank));
       if (rankCards.length + fillers.length >= targetCount) {
         return [...rankCards, ...fillers.slice(0, targetCount - rankCards.length)];
@@ -1732,8 +1730,9 @@ function showGameOver(data) {
   document.getElementById('go-title').textContent = title;
   document.getElementById('go-detail').textContent = detail;
   document.getElementById('go-btn').style.display = isHost ? '' : 'none';
-  document.getElementById('gameover').classList.add('show');
+  document.getElementById('gameover').classList.remove('show');
 }
+
 
 
 let peekTimer = null;
@@ -1754,12 +1753,12 @@ function showPeekOverlay(data) {
   if (note) {
     const uses = data.uses ?? 0;
     const max = data.max ?? 3;
-    note.textContent = `3秒后自动关闭｜验牌 ${uses}/${max}`;
+    note.textContent = `3秒可见｜验牌 ${uses}/${max}`;
   }
 
   overlay.classList.add('show');
   clearTimeout(peekTimer);
-  const delay = Math.max(500, (data.expiresAt || (Date.now() + 3000)) - Date.now());
+  const delay = Math.max(2500, data.displayMs || 3000);
   peekTimer = setTimeout(hidePeekOverlay, delay);
 }
 
