@@ -380,13 +380,13 @@ body {
 
 /* Enlarged played cards */
 .played-area .card {
-  width: 68px; height: 98px;
-  font-size: 17px; cursor: default;
-  border-radius: 11px;
+  width: 52px; height: 74px;
+  font-size: 14px; cursor: default;
+  border-radius: 9px;
 }
-.played-area .card .rank { font-size: 18px; }
-.played-area .card .suit { font-size: 23px; margin-top: 5px; }
-.played-area .card .joker-text { font-size: 12px; left: 6px; bottom: 6px; padding: 2px 5px; }
+.played-area .card .rank { font-size: 15px; }
+.played-area .card .suit { font-size: 18px; margin-top: 3px; }
+.played-area .card .joker-text { font-size: 10px; left: 4px; bottom: 4px; padding: 1px 4px; }
 .played-area .card.selected { transform: none; }
 
 .gouji-tag {
@@ -611,10 +611,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   #turn-timer { font-size: 18px; }
   #actions button { min-width: 78px; padding: 8px 14px; font-size: 16px; letter-spacing: 2px; }
   .played-area { max-width: min(84vw, 760px); gap: 4px; }
-  .played-area .card { width: 60px; height: 86px; border-radius: 9px; }
-  .played-area .card .rank { font-size: 16px; }
-  .played-area .card .suit { font-size: 20px; margin-top: 4px; }
-  .played-area .card .joker-text { font-size: 11px; left: 5px; bottom: 5px; }
+  .played-area .card { width: 48px; height: 68px; border-radius: 8px; }
+  .played-area .card .rank { font-size: 13px; }
+  .played-area .card .suit { font-size: 16px; margin-top: 3px; }
+  .played-area .card .joker-text { font-size: 8px; left: 3px; bottom: 3px; }
   .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 34px); }
   .played-area.ppos-1 { right: 3%; }
   .played-area.ppos-2 { right: 3%; }
@@ -633,10 +633,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   .card { width: 46px; height: 68px; border-radius: 8px; }
   .card-group { min-height: 90px; }
   .played-area { max-width: 92vw; gap: 3px; }
-  .played-area .card { width: 52px; height: 76px; border-radius: 8px; }
-  .played-area .card .rank { font-size: 14px; }
-  .played-area .card .suit { font-size: 17px; margin-top: 3px; }
-  .played-area .card .joker-text { font-size: 9px; left: 4px; bottom: 4px; }
+  .played-area .card { width: 42px; height: 60px; border-radius: 7px; }
+  .played-area .card .rank { font-size: 12px; }
+  .played-area .card .suit { font-size: 14px; margin-top: 2px; }
+  .played-area .card .joker-text { font-size: 8px; left: 3px; bottom: 3px; }
   .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 28px); }
   .played-area.ppos-1 { right: 2%; }
   .played-area.ppos-2 { right: 2%; }
@@ -1019,25 +1019,26 @@ function playCaughtSound() {
 
 function playCardSound() {
   playToneSequence([
-    { freq: 220, at: 0.00, dur: 0.035, type: 'square' },
-    { freq: 140, at: 0.03, dur: 0.045, type: 'triangle' },
-  ], 0.026);
+    { freq: 180, at: 0.00, dur: 0.018, type: 'square' },
+    { freq: 120, at: 0.018, dur: 0.040, type: 'triangle' },
+  ], 0.035);
 }
 
 function playGoujiSound() {
   playToneSequence([
-    { freq: 440, at: 0.00, dur: 0.06, type: 'square' },
-    { freq: 660, at: 0.08, dur: 0.07, type: 'square' },
-    { freq: 990, at: 0.18, dur: 0.10, type: 'triangle' },
-  ], 0.03);
+    { freq: 392, at: 0.00, dur: 0.05, type: 'square' },
+    { freq: 523, at: 0.06, dur: 0.06, type: 'square' },
+    { freq: 784, at: 0.14, dur: 0.09, type: 'triangle' },
+    { freq: 1046, at: 0.24, dur: 0.12, type: 'triangle' },
+  ], 0.04);
 }
 
 function playBurnSound() {
   playToneSequence([
-    { freq: 320, at: 0.00, dur: 0.07, type: 'sawtooth' },
-    { freq: 480, at: 0.08, dur: 0.07, type: 'sawtooth' },
-    { freq: 760, at: 0.16, dur: 0.09, type: 'square' },
-  ], 0.03);
+    { freq: 260, at: 0.00, dur: 0.06, type: 'sawtooth' },
+    { freq: 330, at: 0.06, dur: 0.06, type: 'sawtooth' },
+    { freq: 660, at: 0.14, dur: 0.12, type: 'square' },
+  ], 0.04);
 }
 
 function playJieShaoSound() {
@@ -1081,8 +1082,16 @@ function connect() {
   });
 
   socket.on('game_state', (state) => {
+    const prevHandIds = new Set((currentState?.myHand || []).map(c => c.id));
+    const nextHandIds = new Set((state?.myHand || []).map(c => c.id));
+    const sameHand = prevHandIds.size === nextHandIds.size && [...prevHandIds].every(id => nextHandIds.has(id));
+    const sameTurn = currentState?.currentPlayer === state?.currentPlayer && state?.currentPlayer === state?.mySeat;
     currentState = state;
-    selectedCards = [];
+    if (sameHand && sameTurn) {
+      selectedCards = selectedCards.filter(c => nextHandIds.has(c.id));
+    } else {
+      selectedCards = [];
+    }
     stopDragSelect();
     showGame(state);
   });
@@ -1572,7 +1581,12 @@ function toggleSelect(card) {
     selectedCards.splice(idx, 1);
   } else {
     const suggested = getSuggestedSelectCards(card);
-    suggested.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
+    const responseTurn = !!currentState?.tablePlay && currentState?.currentPlayer === currentState?.mySeat;
+    if (responseTurn && selectedCards.length > 0) {
+      selectedCards = [...suggested];
+    } else {
+      suggested.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
+    }
   }
   if (currentState) renderMyHand(currentState);
 }
@@ -1632,30 +1646,25 @@ document.addEventListener('pointercancel', stopDragSelect);
 function doPlay() {
   if (selectedCards.length === 0) { toast('请先选牌'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal' });
-  selectedCards = [];
 }
 
 function doNormalFour() {
   if (selectedCards.length === 0) { toast('请先选4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal4' });
-  selectedCards = [];
 }
 
 function doKaiDian() {
   if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'kaidian' });
-  selectedCards = [];
 }
 
 function doCallGong() {
   if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'callgong' });
-  selectedCards = [];
 }
 
 function doPass() {
   socket.emit('pass');
-  selectedCards = [];
 }
 
 function doLet() {

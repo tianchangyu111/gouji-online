@@ -710,6 +710,15 @@ function compareSpecialOnly(a, t) {
   return 0;
 }
 
+function compareMixedPlay(a, t) {
+  if (a.baseRank !== t.baseRank) return a.baseRank > t.baseRank;
+  if ((a.baseCount || 0) !== (t.baseCount || 0)) return (a.baseCount || 0) > (t.baseCount || 0);
+  if ((a.bigJokers || 0) !== (t.bigJokers || 0)) return (a.bigJokers || 0) > (t.bigJokers || 0);
+  if ((a.smallJokers || 0) !== (t.smallJokers || 0)) return (a.smallJokers || 0) > (t.smallJokers || 0);
+  if ((a.twos || 0) !== (t.twos || 0)) return (a.twos || 0) > (t.twos || 0);
+  return false;
+}
+
 function canBeat(cards, tableCards) {
   const a = analyzePlay(cards);
   const t = analyzePlay(tableCards);
@@ -719,15 +728,16 @@ function canBeat(cards, tableCards) {
   if (a.count !== t.count) return false;
 
   if (a.specialOnly && t.specialOnly) return compareSpecialOnly(a, t) > 0;
-  if (a.specialOnly && !t.specialOnly) return a.baseRank > t.baseRank;
-  if (!a.specialOnly && t.specialOnly) return a.baseRank > t.baseRank;
+  if (a.specialOnly && !t.specialOnly) {
+    const pseudo = { baseRank: a.baseRank, baseCount: 0, twos: a.twos || 0, smallJokers: a.smallJokers || 0, bigJokers: a.bigJokers || 0 };
+    return compareMixedPlay(pseudo, t);
+  }
+  if (!a.specialOnly && t.specialOnly) {
+    const pseudo = { baseRank: t.baseRank, baseCount: 0, twos: t.twos || 0, smallJokers: t.smallJokers || 0, bigJokers: t.bigJokers || 0 };
+    return compareMixedPlay(a, pseudo);
+  }
 
-  if (a.baseRank !== t.baseRank) return a.baseRank > t.baseRank;
-  if ((a.baseCount || 0) !== (t.baseCount || 0)) return (a.baseCount || 0) > (t.baseCount || 0);
-  if ((a.bigJokers || 0) !== (t.bigJokers || 0)) return (a.bigJokers || 0) > (t.bigJokers || 0);
-  if ((a.smallJokers || 0) !== (t.smallJokers || 0)) return (a.smallJokers || 0) > (t.smallJokers || 0);
-  if ((a.twos || 0) !== (t.twos || 0)) return (a.twos || 0) > (t.twos || 0);
-  return false;
+  return compareMixedPlay(a, t);
 }
 
 function makeVirtualCards(baseRank, countBase, countTwo, countSmall, countBig) {
