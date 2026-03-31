@@ -12,6 +12,7 @@ let myRoom = '';
 let isHost = false;
 let selectedCards = [];
 let currentState = null;
+let dragSelectState = { active: false, add: true, seen: new Set(), timer: null };
 let countdownTimer = null;
 
 // Cheat
@@ -64,9 +65,32 @@ function playCaughtSound() {
 
 function playCardSound() {
   playToneSequence([
-    { freq: 660, at: 0.00, dur: 0.04, type: 'triangle' },
-    { freq: 820, at: 0.05, dur: 0.05, type: 'triangle' },
-  ], 0.018);
+    { freq: 560, at: 0.00, dur: 0.04, type: 'triangle' },
+    { freq: 760, at: 0.05, dur: 0.05, type: 'triangle' },
+  ], 0.02);
+}
+
+function playGoujiSound() {
+  playToneSequence([
+    { freq: 440, at: 0.00, dur: 0.06, type: 'square' },
+    { freq: 660, at: 0.08, dur: 0.07, type: 'square' },
+    { freq: 990, at: 0.18, dur: 0.10, type: 'triangle' },
+  ], 0.03);
+}
+
+function playBurnSound() {
+  playToneSequence([
+    { freq: 320, at: 0.00, dur: 0.07, type: 'sawtooth' },
+    { freq: 480, at: 0.08, dur: 0.07, type: 'sawtooth' },
+    { freq: 760, at: 0.16, dur: 0.09, type: 'square' },
+  ], 0.03);
+}
+
+function playJieShaoSound() {
+  playToneSequence([
+    { freq: 740, at: 0.00, dur: 0.07, type: 'triangle' },
+    { freq: 540, at: 0.09, dur: 0.08, type: 'triangle' },
+  ], 0.025);
 }
 
 function speakTurnPrompt() {
@@ -111,6 +135,7 @@ function connect() {
   socket.on('game_state', (state) => {
     currentState = state;
     selectedCards = [];
+    stopDragSelect();
     showGame(state);
   });
 
@@ -138,6 +163,9 @@ function connect() {
   socket.on('sound_cue', (data) => {
     const t = data?.type || 'secret';
     if (t === 'caught') playCaughtSound();
+    else if (t === 'gouji') playGoujiSound();
+    else if (t === 'burn') playBurnSound();
+    else if (t === 'jieshao') playJieShaoSound();
     else if (t === 'play') playCardSound();
     else playSecretSound();
   });
@@ -319,8 +347,13 @@ function renderLabels(state) {
 
     // 开点 badge
     let dianHtml = '';
+    const streak = state.dianSkipStreak?.[abs] ?? 0;
     if (state.openedDian && state.openedDian[abs]) {
       dianHtml = '<span class="dian-badge dian-open">已开点</span>';
+    } else if (state.lostKaiDian && state.lostKaiDian[abs]) {
+      dianHtml = `<span class="dian-badge dian-closed">未开点${streak > 0 ? `·${streak}` : ''}</span>`;
+    } else if (streak > 0) {
+      dianHtml = `<span class="dian-badge dian-closed">未开点·${streak}</span>`;
     }
     if (state.calledTributeSeats && state.calledTributeSeats[abs]) {
       dianHtml += '<span class="dian-badge dian-closed">下局叫贡</span>';
@@ -421,7 +454,9 @@ function renderMyHand(state) {
       if (isLocked) el.classList.add('locked');
 
       if (!isLocked) {
+        el.dataset.cardId = String(card.id);
         el.addEventListener('click', () => toggleSelect(card));
+        el.addEventListener('pointerdown', (e) => beginDragSelect(card, e));
         let lastTap = 0;
         el.addEventListener('touchend', (e) => {
           const now = Date.now();
@@ -438,7 +473,20 @@ function renderMyHand(state) {
       const badge = document.createElement('div');
       badge.className = 'group-count';
       badge.textContent = '×' + group.cards.length;
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const suggested = getSuggestedSelectCards(group.cards[0]);
+        toggleGroupSelect(suggested);
+      });
       groupEl.appendChild(badge);
+    }
+
+    if (!isLocked) {
+      groupEl.addEventListener('click', (e) => {
+        if (e.target !== groupEl) return;
+        const suggested = getSuggestedSelectCards(group.cards[0]);
+        toggleGroupSelect(suggested);
+      });
     }
 
     if (isLocked) {
@@ -525,22 +573,109 @@ function isGoujiPlayClient(cards) {
 }
 
 // ============ INTERACTIONS ============
+function getHandGroupCardsByRank(rank) {
+  const hand = currentState?.myHand || [];
+  return hand.filter(c => c.rank === rank);
+}
+
+function getSuggestedSelectCards(card) {
+  const hand = currentState?.myHand || [];
+  const rankCards = getHandGroupCardsByRank(card.rank);
+  if (!rankCards.length) return [card];
+
+  const isResponseTurn = !!currentState?.tablePlay && currentState?.currentPlayer === currentState?.mySeat;
+  const targetCount = currentState?.tablePlay?.cards?.length || 1;
+
+  if (currentState?.canKaiDian === currentState?.mySeat && card.rank === 4) {
+    return rankCards;
+  }
+
+  if (isResponseTurn && targetCount > 1) {
+    // Same-rank response first.
+    if (rankCards.length >= targetCount) return rankCards.slice(0, targetCount);
+
+    // For 3-A, auto-fill with 2 / jokers as hangers so one tap can make a valid combo.
+    if (card.rank >= 3 && card.rank <= 14) {
+      const fillers = hand.filter(c => [15,16,17].includes(c.rank));
+      if (rankCards.length + fillers.length >= targetCount) {
+        return [...rankCards, ...fillers.slice(0, targetCount - rankCards.length)];
+      }
+    }
+  }
+  return [card];
+}
+
+function setCardSelection(card, shouldSelect) {
+  const idx = selectedCards.findIndex(c => c.id === card.id);
+  if (shouldSelect) {
+    if (idx < 0) selectedCards.push(card);
+  } else if (idx >= 0) {
+    selectedCards.splice(idx, 1);
+  }
+}
+
 function toggleSelect(card) {
   const idx = selectedCards.findIndex(c => c.id === card.id);
-  if (idx >= 0) selectedCards.splice(idx, 1);
-  else selectedCards.push(card);
+  if (idx >= 0) {
+    selectedCards.splice(idx, 1);
+  } else {
+    const suggested = getSuggestedSelectCards(card);
+    suggested.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
+  }
   if (currentState) renderMyHand(currentState);
 }
 
 function toggleGroupSelect(cards) {
-  const allSel = cards.every(c => selectedCards.some(s => s.id === c.id));
+  const ids = new Set((cards || []).map(c => c.id));
+  if (!ids.size) return;
+  const allSel = [...ids].every(id => selectedCards.some(s => s.id === id));
   if (allSel) {
-    selectedCards = selectedCards.filter(s => !cards.some(c => c.id === s.id));
+    selectedCards = selectedCards.filter(s => !ids.has(s.id));
   } else {
-    cards.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
+    (cards || []).forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
   }
   if (currentState) renderMyHand(currentState);
 }
+
+function beginDragSelect(card, e) {
+  clearTimeout(dragSelectState.timer);
+  dragSelectState.timer = setTimeout(() => {
+    dragSelectState.active = true;
+    dragSelectState.add = !selectedCards.some(s => s.id === card.id);
+    dragSelectState.seen = new Set();
+    dragApplyCard(card);
+  }, 180);
+}
+
+function dragApplyCard(card) {
+  if (!dragSelectState.active || !card || dragSelectState.seen.has(card.id)) return;
+  dragSelectState.seen.add(card.id);
+  setCardSelection(card, dragSelectState.add);
+  if (currentState) renderMyHand(currentState);
+}
+
+function findCardById(id) {
+  return (currentState?.myHand || []).find(c => String(c.id) === String(id)) || null;
+}
+
+document.addEventListener('pointermove', (e) => {
+  if (!dragSelectState.active) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cardEl = el?.closest?.('.card[data-card-id]');
+  if (!cardEl) return;
+  const card = findCardById(cardEl.dataset.cardId);
+  if (card) dragApplyCard(card);
+});
+
+function stopDragSelect() {
+  clearTimeout(dragSelectState.timer);
+  dragSelectState.timer = null;
+  dragSelectState.active = false;
+  dragSelectState.seen = new Set();
+}
+
+document.addEventListener('pointerup', stopDragSelect);
+document.addEventListener('pointercancel', stopDragSelect);
 
 function doPlay() {
   if (selectedCards.length === 0) { toast('请先选牌'); return; }

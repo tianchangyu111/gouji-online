@@ -337,8 +337,8 @@ function scheduleTurnTimer(room) {
   ensureTurnSeatValid(room);
   const game = room.game;
   if (game.currentPlayer < 0 || game.finished[game.currentPlayer]) return;
-  game.turnEndsAt = Date.now() + 10000;
-  room.turnTimer = setTimeout(() => handleTurnTimeout(room), 10050);
+  game.turnEndsAt = Date.now() + 20000;
+  room.turnTimer = setTimeout(() => handleTurnTimeout(room), 20050);
 }
 
 function handleTurnTimeout(room) {
@@ -357,7 +357,7 @@ function handleTurnTimeout(room) {
     if (autoIds.length > 0) {
       result = processPlay(room, seat, autoIds);
       io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，已自动出牌` });
-      io.to(room.code).emit('sound_cue', { type: 'play' });
+      io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat) });
     } else {
       const next = nextActiveSeat(game, seat);
       game.playerActions[seat] = { type: 'timeout' };
@@ -613,19 +613,38 @@ function deal(cheatSeat = -1, luckySeat = -1) {
 // ============ ANALYZE PLAY ============
 function analyzePlay(cards) {
   if (!cards || cards.length === 0) return null;
-  const normals = cards.filter(c => c.rank >= 3 && c.rank <= 15);
+  // Base rank cards are only 3-A. 2 and jokers are hangers / specials.
+  const normals = cards.filter(c => c.rank >= 3 && c.rank <= 14);
   const twos = cards.filter(c => c.rank === 15).length;
   const smallJ = cards.filter(c => c.rank === 16).length;
   const bigJ = cards.filter(c => c.rank === 17).length;
+
+  // Pure 2 / pure jokers can be played alone.
+  // Mixed 2 + joker without a base rank is invalid.
   if (normals.length === 0) {
     if (twos > 0 && smallJ === 0 && bigJ === 0) {
       return { count: cards.length, baseRank: 15, baseCount: twos, coreCount: twos, flowerCount: 0, hasJoker: false, bigJokers: 0, smallJokers: 0, twos };
     }
-    return { count: cards.length, baseRank: bigJ > 0 ? 17 : 16, baseCount: 0, coreCount: bigJ + smallJ, flowerCount: 0, hasJoker: true, jokerLevel: bigJ > 0 ? 17 : 16, bigJokers: bigJ, smallJokers: smallJ, twos: 0 };
+    if (twos === 0 && (smallJ > 0 || bigJ > 0)) {
+      return { count: cards.length, baseRank: bigJ > 0 ? 17 : 16, baseCount: 0, coreCount: bigJ + smallJ, flowerCount: 0, hasJoker: true, jokerLevel: bigJ > 0 ? 17 : 16, bigJokers: bigJ, smallJokers: smallJ, twos: 0 };
+    }
+    return null;
   }
+
   const baseRank = normals[0].rank;
   if (normals.some(c => c.rank !== baseRank)) return null;
-  return { count: cards.length, baseRank, baseCount: normals.length, coreCount: normals.length, flowerCount: smallJ + bigJ, hasJoker: (smallJ + bigJ) > 0, bigJokers: bigJ, smallJokers: smallJ, twos };
+
+  return {
+    count: cards.length,
+    baseRank,
+    baseCount: normals.length,
+    coreCount: normals.length,
+    flowerCount: twos + smallJ + bigJ,
+    hasJoker: (smallJ + bigJ) > 0,
+    bigJokers: bigJ,
+    smallJokers: smallJ,
+    twos
+  };
 }
 
 function isValidPlay(cards) {
@@ -797,9 +816,17 @@ function nextBurnResponder(game) {
   if (!game?.isGoujiMode) return -1;
   if ((activeSeats(game).length || 0) < 5) return game.goujiPair?.[1] ?? -1;
   for (const s of (game.burnQueue || [])) {
-    if (!game.finished[s] && !game.passedThisRound.includes(s)) return s;
+    if (game.finished[s] || game.passedThisRound.includes(s)) continue;
+    // 非对头想管够级时走烧牌；若其仍持有未处理的4，则不满足烧牌条件，自动跳过。
+    if (hasPendingUnplayedFourProtection(game, s)) {
+      game.passedThisRound.push(s);
+      game.playerActions[s] = { type: 'pass', autoSkip: true, reason: 'has4_no_burn' };
+      continue;
+    }
+    return s;
   }
   const opposite = game.goujiPair?.[1] ?? -1;
+  // 对头正常管牌，不参与“有4自动跳过”的烧牌限制。
   if (opposite >= 0 && !game.finished[opposite] && !game.passedThisRound.includes(opposite)) return opposite;
   return -1;
 }
@@ -1221,6 +1248,15 @@ function getStateForPlayer(room, seat) {
   };
 }
 
+function getSoundCueForLastAction(room, seat) {
+  const act = room?.game?.playerActions?.[seat];
+  if (!act || act.type !== 'play') return 'play';
+  if (act.isShao || act.isFanShao) return 'burn';
+  if (act.isJieShao) return 'jieshao';
+  if (act.cards && isGoujiPlay(act.cards)) return 'gouji';
+  return 'play';
+}
+
 function broadcastState(room) {
   ensureTurnSeatValid(room);
   room.players.forEach(p => io.to(p.id).emit('game_state', getStateForPlayer(room, p.seat)));
@@ -1406,13 +1442,6 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
 
   if (triggersGouji && !game.finished[seat]) {
     const duiTou = (seat + 3) % 6;
-    if (hasPendingUnplayedFourProtection(game, duiTou)) {
-      game.playerActions[duiTou] = { type: 'pass', autoSkip: true };
-      const logs = resolveRoundEffects(room);
-      const starter = game.finished[seat] ? (activeSeats(game)[0] ?? -1) : seat;
-      const res = resetRound(game, starter);
-      return { ...res, roundEffectLogs: logs };
-    }
     if (!game.finished[duiTou]) {
       game.isGoujiMode = true;
       game.goujiPair = [seat, duiTou];
@@ -1638,7 +1667,7 @@ io.on('connection', (socket) => {
     const result = processPlay(room, currentSeat, cardIds || [], mode || 'normal');
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
     if (result.gameOver) return finishGame(room);
-    io.to(currentRoom).emit('sound_cue', { type: 'play' });
+    io.to(currentRoom).emit('sound_cue', { type: getSoundCueForLastAction(room, currentSeat) });
     scheduleTurnTimer(room);
     broadcastState(room);
   });
