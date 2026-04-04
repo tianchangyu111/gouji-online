@@ -227,6 +227,34 @@ function applyNaojiPenalty(room, fromSeat, toSeat) {
   return { ok: true, card: pay };
 }
 
+function applyJiangThrowPenalty(room, fromSeat, toSeat) {
+  const game = room.game;
+  if (!game || fromSeat === toSeat) return { ok: false, msg: '无效抓取' };
+  const pay = getPenaltyCardTwoFirst(game.hands[fromSeat]);
+  if (!pay) {
+    return { ok: false, msg: `${room.players.find(p => p.seat === fromSeat)?.name || ('座位' + (fromSeat+1))}没有2或王可赔` };
+  }
+  game.hands[fromSeat] = removeSpecificCards(game.hands[fromSeat], [pay]);
+  pushCards(game.hands[toSeat], [pay]);
+  sortHand(game.hands[fromSeat]);
+  sortHand(game.hands[toSeat]);
+  maybeFinishPlayer(game, fromSeat, room);
+  stabilizeCurrentPlayer(game);
+  return { ok: true, card: pay };
+}
+
+function splitJiangThrowGroups(cards) {
+  if (!cards || cards.length < 2) return null;
+  const groups = new Map();
+  for (const card of cards) {
+    const k = String(card.rank);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(card);
+  }
+  if (groups.size !== 2) return null;
+  return [...groups.values()].map(group => group.map(cloneCard));
+}
+
 
 function chooseTimeoutLeadIds(game, seat) {
   const hand = [...game.hands[seat]].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit);
@@ -453,7 +481,9 @@ function processGrab(room, seat) {
     if (seat === window.seat) continue;
     if (now > window.expiresAt || now < window.startAt - 2000) continue;
     if (window.paidTo.includes(seat)) continue;
-    const payRes = applyNaojiPenalty(room, window.seat, seat);
+    const payRes = (window.type === 'throw2')
+      ? applyJiangThrowPenalty(room, window.seat, seat)
+      : applyNaojiPenalty(room, window.seat, seat);
     window.paidTo.push(seat);
     results.push({ fromSeat: window.seat, toSeat: seat, windowType: window.type || 'naoji', ...payRes });
   }
@@ -522,6 +552,63 @@ function processPeek(room, seat) {
   };
 }
 
+function processJiangThrow(room, seat, cardIds) {
+  const game = room.game;
+  if (!game || room.state !== 'playing') return { ok: false, msg: '游戏未开始' };
+  const me = room.players.find(p => p.seat === seat);
+  if ((me?.name || '').trim() !== '姜海涛') return { ok: false, msg: '只有姜海涛可以使用扔牌' };
+  if (game.finished[seat]) return { ok: false, msg: '你已经出完了，不能再扔牌' };
+  if ((game.jiangThrowUses?.[seat] || 0) >= (game.jiangThrowMax?.[seat] || 0)) return { ok: false, msg: '扔牌次数已用完' };
+  if ((activeSeats(game).length || 0) <= 2) return { ok: false, msg: '场上剩余人数必须大于2人才能扔牌' };
+  if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段不能扔牌' };
+
+  const hand = game.hands[seat] || [];
+  const cards = takeCardsByIds(hand, cardIds || []);
+  if (cards.length !== (cardIds || []).length) return { ok: false, msg: '无效的牌' };
+
+  const groups = splitJiangThrowGroups(cards);
+  if (!groups) return { ok: false, msg: '必须恰好选择两组牌（两种点数）' };
+
+  game.hands[seat] = removeSpecificCards(hand, cards);
+  game.playedPool.push(...cards.map(c => ({ ...cloneCard(c), hiddenThrow: true })));
+  sortHand(game.hands[seat]);
+  game.jiangThrowUses[seat] = (game.jiangThrowUses[seat] || 0) + 1;
+
+  pruneGrabClicks(game);
+  const now = Date.now();
+  const window = {
+    id: ++game.naojiWindowSeq,
+    type: 'throw2',
+    seat,
+    startAt: now,
+    expiresAt: now + 2000,
+    paidTo: [],
+  };
+
+  const uniqueRecentGrabbers = [...new Set((game.recentGrabClicks || [])
+    .filter(item => now - item.time <= 2000 && item.seat !== seat)
+    .map(item => item.seat))];
+
+  const penaltyLogs = [];
+  for (const gSeat of uniqueRecentGrabbers) {
+    const payRes = applyJiangThrowPenalty(room, seat, gSeat);
+    window.paidTo.push(gSeat);
+    penaltyLogs.push({ target: gSeat, ...payRes });
+  }
+
+  game.activeNaojiWindows.push(window);
+  maybeFinishPlayer(game, seat, room);
+  stabilizeCurrentPlayer(game);
+
+  return {
+    ok: true,
+    penalties: penaltyLogs,
+    uses: game.jiangThrowUses[seat],
+    max: game.jiangThrowMax[seat],
+    removedCount: cards.length,
+    groups: groups.map(g => g.map(cardText)),
+  };
+}
 
 function processStrategistView(room, seat) {
   const game = room.game;
@@ -1234,6 +1321,8 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
     returnTasks: returnTasks || [],
     peekUses: [0,0,0,0,0,0],
     peekMax: [0,0,0,0,0,0].map((_, i) => ((players.find(p => p.seat === i)?.name || '').trim() === '张哲' ? 3 : 0)),
+    jiangThrowUses: [0,0,0,0,0,0],
+    jiangThrowMax: [0,0,0,0,0,0].map((_, i) => ((players.find(p => p.seat === i)?.name || '').trim() === '姜海涛' ? 1 : 0)),
   };
 }
 
@@ -1285,7 +1374,10 @@ function getStateForPlayer(room, seat) {
     forceKaiDianThisRound: room.forceKaiDianThisRound || [false,false,false,false,false,false],
     peekUses: game.peekUses || [0,0,0,0,0,0],
     peekMax: game.peekMax || [0,0,0,0,0,0],
+    jiangThrowUses: game.jiangThrowUses || [0,0,0,0,0,0],
+    jiangThrowMax: game.jiangThrowMax || [0,0,0,0,0,0],
     canPeek: ((me?.name || '').trim() === '张哲') && game.currentPlayer !== seat && !game.finished[seat] && ((game.peekUses?.[seat] || 0) < (game.peekMax?.[seat] || 0)),
+    canJiangThrow: ((me?.name || '').trim() === '姜海涛') && !game.finished[seat] && ((activeSeats(game).length || 0) > 2) && ((game.jiangThrowUses?.[seat] || 0) < (game.jiangThrowMax?.[seat] || 0)) && !currentReturnTask,
     canStrategist: ((me?.name || '').trim() === '陈杰') && !!game.finished[seat] && getRemainingTeammateSeats(game, seat).length > 0,
     strategistTargets: getRemainingTeammateSeats(game, seat),
     canLet: canLetTeammate(game, seat),
@@ -1782,7 +1874,7 @@ io.on('connection', (socket) => {
 
     for (const item of result.results) {
       const fromName = room.players.find(p => p.seat === item.fromSeat)?.name || ('座位' + (item.fromSeat + 1));
-      const actName = item.windowType === 'peek' ? '验牌' : '孬急';
+      const actName = item.windowType === 'peek' ? '验牌' : (item.windowType === 'throw2' ? '扔牌' : '孬急');
       if (item.ok) {
         io.to(currentRoom).emit('toast_msg', { msg: `${who} 抓到 ${fromName} 的${actName}，获得 ${cardText(item.card)}` });
         io.to(currentRoom).emit('sound_cue', { type: 'caught' });
@@ -1819,6 +1911,32 @@ io.on('connection', (socket) => {
           io.to(currentRoom).emit('sound_cue', { type: 'caught' });
         } else {
           io.to(currentRoom).emit('toast_msg', { msg: `${who} 验牌被${targetName}抓中，但${item.msg.replace(/^.*?没有/, '没有')}` });
+        }
+      }
+    }
+
+    if (maybeGameOver(room.game)) return finishGame(room);
+    broadcastState(room);
+  });
+
+  socket.on('jiang_throw', ({ cardIds }) => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const result = processJiangThrow(room, currentSeat, cardIds || []);
+    if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
+
+    socket.emit('toast_msg', { msg: `已发动扔牌，悄悄扔出 ${result.removedCount} 张` });
+    io.to(currentRoom).emit('sound_cue', { type: 'throw2' });
+
+    if (result.penalties && result.penalties.length) {
+      const who = room.players.find(p => p.seat === currentSeat)?.name || ('座位' + (currentSeat + 1));
+      for (const item of result.penalties) {
+        const targetName = room.players.find(p => p.seat === item.target)?.name || ('座位' + (item.target + 1));
+        if (item.ok) {
+          io.to(currentRoom).emit('toast_msg', { msg: `${who} 扔牌被${targetName}抓中，赔出 ${cardText(item.card)}` });
+          io.to(currentRoom).emit('sound_cue', { type: 'caught' });
+        } else {
+          io.to(currentRoom).emit('toast_msg', { msg: `${who} 扔牌被${targetName}抓中，但${item.msg.replace(/^.*?没有/, '没有')}` });
         }
       }
     }

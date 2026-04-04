@@ -647,19 +647,18 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 /* Rankings */
 #rankings-panel {
   position: absolute;
-  top: 8px; right: 10px;
+  top: 6px; right: 8px;
   z-index: 15;
   color: var(--gold);
   font-family: 'Ma Shan Zheng', cursive;
-  font-size: 18px;
-  background: rgba(0,0,0,0.52);
-  border: 1px solid rgba(212,168,67,0.28);
-  border-radius: 12px;
-  padding: 10px 14px;
-  min-width: 150px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+  font-size: 12px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(212,168,67,0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-width: 80px;
 }
-#rankings-panel h4 { font-size: 20px; text-align: center; margin-bottom: 6px; border-bottom: 1px solid rgba(212,168,67,0.18); padding-bottom: 5px; letter-spacing: 2px; }
+#rankings-panel h4 { font-size: 13px; text-align: center; margin-bottom: 3px; border-bottom: 1px solid rgba(212,168,67,0.15); padding-bottom: 3px; }
 
 /* Message toast */
 #toast {
@@ -905,6 +904,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
       <button class="btn-no" id="btn-let" onclick="doLet()" style="display:none" disabled>让 牌</button>
       <button class="btn-special" id="btn-naoji" onclick="doNaoji()" disabled>孬 急</button>
       <button class="btn-special" id="btn-grab" onclick="doGrab()" disabled>抓</button>
+      <button class="btn-special" id="btn-jiang-throw" onclick="doJiangThrow()" style="display:none" disabled>扔 牌</button>
       <button class="btn-special" id="btn-peek" onclick="doPeek()" style="display:none" disabled>验 牌</button>
       <button class="btn-special" id="btn-strategist" onclick="doStrategist()" style="display:none" disabled>军 师</button>
     </div>
@@ -1009,6 +1009,13 @@ function playSecretSound() {
     { freq: 880, at: 0.00, dur: 0.08, type: 'triangle' },
     { freq: 1174, at: 0.10, dur: 0.08, type: 'triangle' },
   ], 0.02);
+}
+
+function playThrowSkillSound() {
+  playToneSequence([
+    { freq: 660, at: 0.00, dur: 0.05, type: 'triangle' },
+    { freq: 740, at: 0.07, dur: 0.05, type: 'triangle' },
+  ], 0.012);
 }
 
 function playCaughtSound() {
@@ -1125,6 +1132,7 @@ function connect() {
     else if (t === 'burn') playBurnSound();
     else if (t === 'jieshao') playJieShaoSound();
     else if (t === 'play') playCardSound();
+    else if (t === 'throw2') playThrowSkillSound();
     else playSecretSound();
   });
 
@@ -1242,6 +1250,8 @@ function showGame(state) {
   document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
   document.getElementById('btn-callgong').style.display = 'none';
   document.getElementById('btn-callgong').disabled = true;
+  document.getElementById('btn-jiang-throw').style.display = (state.jiangThrowMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
+  document.getElementById('btn-jiang-throw').disabled = !state.canJiangThrow || state.finished[state.mySeat];
   document.getElementById('btn-peek').style.display = (state.peekMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
   document.getElementById('btn-peek').disabled = !state.canPeek || state.finished[state.mySeat];
   document.getElementById('btn-strategist').style.display = state.canStrategist ? '' : 'none';
@@ -1257,12 +1267,15 @@ function showGame(state) {
   if (panelMeta) {
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
+    const jiangUsed = state.jiangThrowUses?.[state.mySeat] ?? 0;
+    const jiangMax = state.jiangThrowMax?.[state.mySeat] ?? 0;
     const peekText = peekMax > 0 ? `　|　验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
+    const jiangText = jiangMax > 0 ? `　|　扔牌：${jiangUsed}/${jiangMax}${state.canJiangThrow ? '（可用）' : '（需>2人）'}` : '';
     const strategistText = state.canStrategist ? `　|　狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
     const tributeText = `　|　点贡:${state.dianTributeDebt?.[state.mySeat] ?? 0} 烧贡:${state.burnTributeDebt?.[state.mySeat] ?? 0} 闷贡:${state.menTributeDebt?.[state.mySeat] ?? 0}`;
     const letText = state.canLet ? '　|　可让牌' : '';
     const phaseText = state.isChaosPhase ? '　|　四人乱缠' : (state.noHeadSeat >= 0 ? `　|　无头：${getPlayerName(state, state.noHeadSeat)}` : '');
-    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}${phaseText}`;
+    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${jiangText}${peekText}${strategistText}${tributeText}${letText}${phaseText}`;
   }
 
   const goBtn = document.getElementById('go-btn');
@@ -1463,24 +1476,27 @@ function renderMyHand(state) {
 function renderRankings(state) {
   const el = document.getElementById('rank-list');
   if (!state.rankings || state.rankings.length === 0) {
-    el.innerHTML = '<div style="color:#666;font-size:16px">—</div>'; 
+    el.innerHTML = '<div style="color:#666;font-size:11px">—</div>';
     return;
   }
   el.innerHTML = state.rankings.map((s, i) => {
     const name = getPlayerName(state, s);
     const team = TEAM_A.includes(s) ? '🔴' : '🔵';
-    return `<div style="font-size:18px;padding:4px 0;line-height:1.25">${RANK_LABELS[i+1]} ${team} ${name}</div>`;
+    return `<div style="font-size:12px;padding:1px 0">${RANK_LABELS[i+1]} ${team} ${name}</div>`;
   }).join('');
 
   const myMeta = document.getElementById('my-meta');
   if (myMeta) {
     const used = state.naojiUses?.[state.mySeat] ?? 0;
     const max = state.naojiMax?.[state.mySeat] ?? 5;
+    const jiangUsed = state.jiangThrowUses?.[state.mySeat] ?? 0;
+    const jiangMax = state.jiangThrowMax?.[state.mySeat] ?? 0;
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
+    const jiangTxt = jiangMax > 0 ? `<br>扔牌：${jiangUsed}/${jiangMax}${state.canJiangThrow ? '（可用）' : '（需>2人）'}` : '';
     const peekTxt = peekMax > 0 ? `<br>验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
     const strategistTxt = state.canStrategist ? `<br>狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
-    myMeta.innerHTML = `孬急：${used}/${max}${peekTxt}${strategistTxt}`;
+    myMeta.innerHTML = `孬急：${used}/${max}${jiangTxt}${peekTxt}${strategistTxt}`;
   }
 }
 
@@ -1695,6 +1711,12 @@ function doNaoji() {
 
 function doGrab() {
   socket.emit('grab');
+}
+
+function doJiangThrow() {
+  if (selectedCards.length === 0) { toast('请先选中要扔掉的两组牌'); return; }
+  socket.emit('jiang_throw', { cardIds: selectedCards.map(c => c.id) });
+  selectedCards = [];
 }
 
 function doPeek() {

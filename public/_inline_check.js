@@ -56,6 +56,13 @@ function playSecretSound() {
   ], 0.02);
 }
 
+function playThrowSkillSound() {
+  playToneSequence([
+    { freq: 660, at: 0.00, dur: 0.05, type: 'triangle' },
+    { freq: 740, at: 0.07, dur: 0.05, type: 'triangle' },
+  ], 0.012);
+}
+
 function playCaughtSound() {
   playToneSequence([
     { freq: 520, at: 0.00, dur: 0.09, type: 'square' },
@@ -65,25 +72,26 @@ function playCaughtSound() {
 
 function playCardSound() {
   playToneSequence([
-    { freq: 560, at: 0.00, dur: 0.04, type: 'triangle' },
-    { freq: 760, at: 0.05, dur: 0.05, type: 'triangle' },
-  ], 0.02);
+    { freq: 180, at: 0.00, dur: 0.018, type: 'square' },
+    { freq: 120, at: 0.018, dur: 0.040, type: 'triangle' },
+  ], 0.035);
 }
 
 function playGoujiSound() {
   playToneSequence([
-    { freq: 440, at: 0.00, dur: 0.06, type: 'square' },
-    { freq: 660, at: 0.08, dur: 0.07, type: 'square' },
-    { freq: 990, at: 0.18, dur: 0.10, type: 'triangle' },
-  ], 0.03);
+    { freq: 392, at: 0.00, dur: 0.05, type: 'square' },
+    { freq: 523, at: 0.06, dur: 0.06, type: 'square' },
+    { freq: 784, at: 0.14, dur: 0.09, type: 'triangle' },
+    { freq: 1046, at: 0.24, dur: 0.12, type: 'triangle' },
+  ], 0.04);
 }
 
 function playBurnSound() {
   playToneSequence([
-    { freq: 320, at: 0.00, dur: 0.07, type: 'sawtooth' },
-    { freq: 480, at: 0.08, dur: 0.07, type: 'sawtooth' },
-    { freq: 760, at: 0.16, dur: 0.09, type: 'square' },
-  ], 0.03);
+    { freq: 260, at: 0.00, dur: 0.06, type: 'sawtooth' },
+    { freq: 330, at: 0.06, dur: 0.06, type: 'sawtooth' },
+    { freq: 660, at: 0.14, dur: 0.12, type: 'square' },
+  ], 0.04);
 }
 
 function playJieShaoSound() {
@@ -94,16 +102,10 @@ function playJieShaoSound() {
 }
 
 function speakTurnPrompt() {
-  try {
-    if (!audioUnlocked || !('speechSynthesis' in window)) return;
-    const ut = new SpeechSynthesisUtterance('出牌不要等');
-    ut.lang = 'zh-CN';
-    ut.rate = 1.08;
-    ut.pitch = 1.0;
-    ut.volume = 0.9;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(ut);
-  } catch (_) {}
+  playToneSequence([
+    { freq: 740, at: 0.00, dur: 0.05, type: 'triangle' },
+    { freq: 880, at: 0.06, dur: 0.05, type: 'triangle' },
+  ], 0.016);
 }
 
 function onTitleClick() {
@@ -133,8 +135,16 @@ function connect() {
   });
 
   socket.on('game_state', (state) => {
+    const prevHandIds = new Set((currentState?.myHand || []).map(c => c.id));
+    const nextHandIds = new Set((state?.myHand || []).map(c => c.id));
+    const sameHand = prevHandIds.size === nextHandIds.size && [...prevHandIds].every(id => nextHandIds.has(id));
+    const sameTurn = currentState?.currentPlayer === state?.currentPlayer && state?.currentPlayer === state?.mySeat;
     currentState = state;
-    selectedCards = [];
+    if (sameHand && sameTurn) {
+      selectedCards = selectedCards.filter(c => nextHandIds.has(c.id));
+    } else {
+      selectedCards = [];
+    }
     stopDragSelect();
     showGame(state);
   });
@@ -167,6 +177,7 @@ function connect() {
     else if (t === 'burn') playBurnSound();
     else if (t === 'jieshao') playJieShaoSound();
     else if (t === 'play') playCardSound();
+    else if (t === 'throw2') playThrowSkillSound();
     else playSecretSound();
   });
 
@@ -284,6 +295,8 @@ function showGame(state) {
   document.getElementById('btn-grab').disabled = state.finished[state.mySeat];
   document.getElementById('btn-callgong').style.display = 'none';
   document.getElementById('btn-callgong').disabled = true;
+  document.getElementById('btn-jiang-throw').style.display = (state.jiangThrowMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
+  document.getElementById('btn-jiang-throw').disabled = !state.canJiangThrow || state.finished[state.mySeat];
   document.getElementById('btn-peek').style.display = (state.peekMax?.[state.mySeat] || 0) > 0 ? '' : 'none';
   document.getElementById('btn-peek').disabled = !state.canPeek || state.finished[state.mySeat];
   document.getElementById('btn-strategist').style.display = state.canStrategist ? '' : 'none';
@@ -299,12 +312,15 @@ function showGame(state) {
   if (panelMeta) {
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
+    const jiangUsed = state.jiangThrowUses?.[state.mySeat] ?? 0;
+    const jiangMax = state.jiangThrowMax?.[state.mySeat] ?? 0;
     const peekText = peekMax > 0 ? `　|　验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
+    const jiangText = jiangMax > 0 ? `　|　扔牌：${jiangUsed}/${jiangMax}${state.canJiangThrow ? '（可用）' : '（需>2人）'}` : '';
     const strategistText = state.canStrategist ? `　|　狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
     const tributeText = `　|　点贡:${state.dianTributeDebt?.[state.mySeat] ?? 0} 烧贡:${state.burnTributeDebt?.[state.mySeat] ?? 0} 闷贡:${state.menTributeDebt?.[state.mySeat] ?? 0}`;
     const letText = state.canLet ? '　|　可让牌' : '';
     const phaseText = state.isChaosPhase ? '　|　四人乱缠' : (state.noHeadSeat >= 0 ? `　|　无头：${getPlayerName(state, state.noHeadSeat)}` : '');
-    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${peekText}${strategistText}${tributeText}${letText}${phaseText}`;
+    panelMeta.innerHTML = `已出牌池：${state.playedPoolCount || 0}张　|　孬急：${state.naojiUses?.[state.mySeat] ?? 0}/${state.naojiMax?.[state.mySeat] ?? 5}${jiangText}${peekText}${strategistText}${tributeText}${letText}${phaseText}`;
   }
 
   const goBtn = document.getElementById('go-btn');
@@ -518,11 +534,14 @@ function renderRankings(state) {
   if (myMeta) {
     const used = state.naojiUses?.[state.mySeat] ?? 0;
     const max = state.naojiMax?.[state.mySeat] ?? 5;
+    const jiangUsed = state.jiangThrowUses?.[state.mySeat] ?? 0;
+    const jiangMax = state.jiangThrowMax?.[state.mySeat] ?? 0;
     const peekUsed = state.peekUses?.[state.mySeat] ?? 0;
     const peekMax = state.peekMax?.[state.mySeat] ?? 0;
+    const jiangTxt = jiangMax > 0 ? `<br>扔牌：${jiangUsed}/${jiangMax}${state.canJiangThrow ? '（可用）' : '（需>2人）'}` : '';
     const peekTxt = peekMax > 0 ? `<br>验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : '（仅他人回合）'}` : '';
     const strategistTxt = state.canStrategist ? `<br>狗头军师：可看${(state.strategistTargets || []).length}名队友` : '';
-    myMeta.innerHTML = `孬急：${used}/${max}${peekTxt}${strategistTxt}`;
+    myMeta.innerHTML = `孬急：${used}/${max}${jiangTxt}${peekTxt}${strategistTxt}`;
   }
 }
 
@@ -591,11 +610,15 @@ function getSuggestedSelectCards(card) {
   }
 
   if (isResponseTurn && targetCount > 1) {
-    // Same-rank response first.
-    if (rankCards.length >= targetCount) return rankCards.slice(0, targetCount);
-
-    // For 3-A, auto-fill with 2 / jokers as hangers so one tap can make a valid combo.
+    if ([15,16,17].includes(card.rank)) {
+      if (rankCards.length >= targetCount) return rankCards.slice(0, targetCount);
+      const fillers = hand.filter(c => [15,16,17].includes(c.rank) && c.rank !== card.rank);
+      if (rankCards.length + fillers.length >= targetCount) {
+        return [...rankCards, ...fillers.slice(0, targetCount - rankCards.length)];
+      }
+    }
     if (card.rank >= 3 && card.rank <= 14) {
+      if (rankCards.length >= targetCount) return rankCards.slice(0, targetCount);
       const fillers = hand.filter(c => [15,16,17].includes(c.rank));
       if (rankCards.length + fillers.length >= targetCount) {
         return [...rankCards, ...fillers.slice(0, targetCount - rankCards.length)];
@@ -620,7 +643,12 @@ function toggleSelect(card) {
     selectedCards.splice(idx, 1);
   } else {
     const suggested = getSuggestedSelectCards(card);
-    suggested.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
+    const responseTurn = !!currentState?.tablePlay && currentState?.currentPlayer === currentState?.mySeat;
+    if (responseTurn && selectedCards.length > 0) {
+      selectedCards = [...suggested];
+    } else {
+      suggested.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
+    }
   }
   if (currentState) renderMyHand(currentState);
 }
@@ -680,30 +708,25 @@ document.addEventListener('pointercancel', stopDragSelect);
 function doPlay() {
   if (selectedCards.length === 0) { toast('请先选牌'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal' });
-  selectedCards = [];
 }
 
 function doNormalFour() {
   if (selectedCards.length === 0) { toast('请先选4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal4' });
-  selectedCards = [];
 }
 
 function doKaiDian() {
   if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'kaidian' });
-  selectedCards = [];
 }
 
 function doCallGong() {
   if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'callgong' });
-  selectedCards = [];
 }
 
 function doPass() {
   socket.emit('pass');
-  selectedCards = [];
 }
 
 function doLet() {
@@ -733,6 +756,12 @@ function doNaoji() {
 
 function doGrab() {
   socket.emit('grab');
+}
+
+function doJiangThrow() {
+  if (selectedCards.length === 0) { toast('请先选中要扔掉的两组牌'); return; }
+  socket.emit('jiang_throw', { cardIds: selectedCards.map(c => c.id) });
+  selectedCards = [];
 }
 
 function doPeek() {
@@ -778,8 +807,9 @@ function showGameOver(data) {
   document.getElementById('go-title').textContent = title;
   document.getElementById('go-detail').textContent = detail;
   document.getElementById('go-btn').style.display = isHost ? '' : 'none';
-  document.getElementById('gameover').classList.add('show');
+  document.getElementById('gameover').classList.remove('show');
 }
+
 
 
 let peekTimer = null;
@@ -800,12 +830,12 @@ function showPeekOverlay(data) {
   if (note) {
     const uses = data.uses ?? 0;
     const max = data.max ?? 3;
-    note.textContent = `3秒后自动关闭｜验牌 ${uses}/${max}`;
+    note.textContent = `3秒可见｜验牌 ${uses}/${max}`;
   }
 
   overlay.classList.add('show');
   clearTimeout(peekTimer);
-  const delay = Math.max(500, (data.expiresAt || (Date.now() + 3000)) - Date.now());
+  const delay = Math.max(2500, data.displayMs || 3000);
   peekTimer = setTimeout(hidePeekOverlay, delay);
 }
 
