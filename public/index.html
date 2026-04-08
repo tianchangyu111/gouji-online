@@ -850,9 +850,190 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   }
 }
 
+
+/* ============ MOBILE PORTRAIT TUNE-UP ============ */
+#rotate-tip {
+  display: none;
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 260;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(212,168,67,0.28);
+  background: rgba(6,16,12,0.82);
+  color: var(--gold-light);
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 14px;
+  letter-spacing: 2px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  :root { --bottom-panel-h: 45dvh; }
+
+  #rotate-tip { display: block; }
+
+  #game-title {
+    top: calc(env(safe-area-inset-top) + 6px);
+    left: 8px;
+    font-size: 15px;
+    opacity: 0.72;
+  }
+
+  #rankings-panel {
+    top: calc(env(safe-area-inset-top) + 6px);
+    right: 6px;
+    min-width: 68px;
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+  #rankings-panel h4 { font-size: 11px; }
+
+  .plabel .name-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    max-width: 26vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .plabel .card-info { font-size: 10px; }
+  .plabel .action-text { font-size: 11px; min-height: 14px; }
+  .plabel .finish-text { font-size: 12px; }
+
+  .plabel.pos-0 { bottom: calc(var(--bottom-panel-h) - 8px); }
+  .plabel.pos-1 { bottom: 31%; right: 4px; }
+  .plabel.pos-2 { top: calc(env(safe-area-inset-top) + 82px); right: 4px; }
+  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 8px); }
+  .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 82px); left: 4px; }
+  .plabel.pos-5 { bottom: 31%; left: 4px; }
+
+  .played-area {
+    max-width: 58vw;
+    gap: 2px;
+  }
+  .played-area .card {
+    width: 28px;
+    height: 40px;
+    border-radius: 6px;
+  }
+  .played-area .card .rank { font-size: 10px; }
+  .played-area .card .suit { font-size: 11px; margin-top: 1px; }
+  .played-area .card .joker-text { font-size: 6px; left: 2px; bottom: 2px; }
+  .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 18px); }
+  .played-area.ppos-1 { bottom: 30%; right: 6%; }
+  .played-area.ppos-2 { top: calc(env(safe-area-inset-top) + 110px); right: 6%; }
+  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 48px); }
+  .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 110px); left: 6%; }
+  .played-area.ppos-5 { bottom: 30%; left: 6%; }
+
+  #bottom-panel {
+    width: 100vw;
+    left: 0;
+    transform: none;
+    border-radius: 18px 18px 0 0;
+    min-height: var(--bottom-panel-h);
+    height: var(--bottom-panel-h);
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    gap: 8px;
+    background: linear-gradient(to bottom, rgba(7,20,14,0.86), rgba(5,14,10,0.97));
+  }
+
+  #panel-top {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  #turn-timer {
+    font-size: 16px;
+    padding: 4px 10px;
+    border-radius: 10px;
+  }
+
+  #panel-meta {
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: right;
+    align-self: center;
+  }
+
+  #actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    justify-content: stretch;
+  }
+
+  #actions button {
+    min-width: 0;
+    width: 100%;
+    padding: 8px 6px;
+    font-size: 15px;
+    letter-spacing: 1px;
+    border-radius: 10px;
+  }
+
+  #my-hand-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(var(--bottom-panel-h) - 122px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: 10px;
+    padding-right: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #my-hand {
+    gap: 9px 8px;
+    padding: 2px 2px 12px;
+    justify-content: flex-start;
+  }
+
+  .card {
+    width: 38px;
+    height: 58px;
+    border-radius: 8px;
+  }
+  .card .rank { font-size: 12px; }
+  .card .suit { font-size: 13px; }
+  .card .joker-text { font-size: 9px; left: 4px; bottom: 4px; }
+
+  .card-group {
+    min-height: 76px;
+  }
+
+  .group-count {
+    bottom: -10px;
+    font-size: 12px;
+    padding: 1px 8px;
+  }
+
+  #strategist-panel {
+    width: calc(100vw - 12px);
+    right: 6px;
+    left: 6px;
+    top: calc(env(safe-area-inset-top) + 48px);
+    max-height: 40vh;
+  }
+
+  #peek-box {
+    width: calc(100vw - 14px);
+    padding: 14px 10px;
+  }
+  #peek-box h3 { font-size: 20px; }
+  .peek-side-title { font-size: 14px; }
+}
+
 </style>
 </head>
 <body>
+<div id="rotate-tip">建议横屏体验更舒服</div>
 
 <!-- ============ LOBBY ============ -->
 <div id="lobby">
