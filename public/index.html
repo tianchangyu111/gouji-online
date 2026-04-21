@@ -1069,6 +1069,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   width: min(560px, calc(100vw - 56px));
 }
 
+<<<<<<< HEAD
 .lobby-main-card {
   width: 100%;
   padding: 18px;
@@ -1171,6 +1172,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   margin-bottom: 14px;
 }
 
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 .lobby-input {
   height: 56px;
   border-radius: 16px;
@@ -1205,7 +1208,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
 .lobby-side,
 .waiting-side {
+<<<<<<< HEAD
   position: relative;
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   min-width: 260px;
   flex: 1 1 280px;
   padding: 18px;
@@ -1247,6 +1253,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   border: 1px solid rgba(212,168,67,0.18);
 }
 
+<<<<<<< HEAD
 .side-list {
   margin-top: 14px;
   display: flex;
@@ -1272,6 +1279,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   flex: 0 0 auto;
 }
 
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 #waiting {
   justify-content: flex-start;
   align-items: stretch;
@@ -1298,11 +1307,15 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   border-radius: 18px;
   background: rgba(6,14,9,0.52);
   border-color: rgba(242,209,134,0.18);
+<<<<<<< HEAD
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 .player-slot {
   min-height: 46px;
+<<<<<<< HEAD
   border-radius: 14px;
   margin-bottom: 6px;
   padding: 10px 12px;
@@ -1312,12 +1325,17 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
 .player-slot:last-child {
   margin-bottom: 0;
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 #btn-start {
   height: 56px;
   border-radius: 16px;
+<<<<<<< HEAD
   box-shadow: 0 10px 22px rgba(156,106,24,0.22);
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 #game-title {
@@ -1359,11 +1377,14 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   font-size: 12px;
 }
 
+<<<<<<< HEAD
 #rank-list div,
 #my-meta div {
   border-radius: 8px;
 }
 
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 #bottom-panel {
   position: absolute;
   inset: 0;
@@ -1439,7 +1460,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   font-size: 16px;
   letter-spacing: 1px;
   border-radius: 12px;
+<<<<<<< HEAD
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(0,0,0,0.18);
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 #my-hand-wrap {
@@ -1486,6 +1510,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   filter: grayscale(0.15);
 }
 
+<<<<<<< HEAD
 .card {
   backdrop-filter: blur(2px);
 }
@@ -1494,6 +1519,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   transform: translateY(-6px);
 }
 
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 .plabel .name-tag {
   border-radius: 14px;
   border-color: rgba(242,209,134,0.14);
@@ -1595,6 +1622,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 }
 
 @media (max-width: 640px) {
+<<<<<<< HEAD
   #lobby {
     padding: 18px;
     gap: 10px;
@@ -1656,16 +1684,21 @@ button:disabled { opacity: 0.3; cursor: default !important; }
     font-size: 12px;
   }
 
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   .lobby-side,
   .waiting-side {
     padding: 14px;
   }
 
+<<<<<<< HEAD
   .side-note {
     font-size: 11px;
     line-height: 1.55;
   }
 
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   .side-title {
     font-size: 22px;
   }
@@ -1696,6 +1729,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
   <div class="lobby-shell">
     <div class="lobby-left">
+<<<<<<< HEAD
       <div class="lobby-main-card">
         <div class="hero-chip-row" style="margin-bottom:12px">
           <span class="hero-chip strong">微信同款大厅</span>
@@ -1730,26 +1764,39 @@ button:disabled { opacity: 0.3; cursor: default !important; }
         <button class="lobby-btn btn-secondary" onclick="doJoin()">加 入 房 间</button>
       </div>
       <div class="lobby-or">连接同一后端的朋友可直接输入房间号加入</div>
+=======
+      <input class="lobby-input" id="input-name" placeholder="输入你的昵称" maxlength="8" autocomplete="off">
+      <button class="lobby-btn btn-primary" onclick="doCreate()">创 建 房 间</button>
+      <div class="lobby-or">— 或者 —</div>
+      <input class="lobby-input" id="input-code" placeholder="输入房间号" maxlength="4" style="text-transform:uppercase" autocomplete="off">
+      <button class="lobby-btn btn-secondary" onclick="doJoin()">加 入 房 间</button>
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       <div id="lobby-error"></div>
     </div>
 
     <div class="lobby-side">
       <div class="side-title">当前同步状态</div>
+<<<<<<< HEAD
       <div class="side-chip-row" style="margin-bottom:10px">
         <span class="side-chip strong">对战主流程已接通</span>
         <span class="side-chip">等待房已同步</span>
         <span class="side-chip">牌桌持续优化中</span>
       </div>
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       <div class="side-text">
         这个网页端已经按微信小游戏当前版本继续同步。
         现在大厅、等待房、牌桌、选牌、验牌、军师、结算都在往同一套体验收。
       </div>
       <div class="side-pill" id="server-origin-pill">服务地址：当前站点</div>
+<<<<<<< HEAD
       <div class="side-list">
         <div class="side-list-item"><span class="side-list-dot"></span><span>创建房间后，把房间号发给朋友即可一起进入等待房。</span></div>
         <div class="side-list-item"><span class="side-list-dot"></span><span>加入房间只需要昵称和 4 位房间号，不需要额外注册。</span></div>
         <div class="side-list-item"><span class="side-list-dot"></span><span>网页端和小游戏端共用一套联机后端，房间与牌局状态互通。</span></div>
       </div>
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       <div class="side-note">
         如果你把这份 `gouji-online` 部署到公网，朋友打开这个网页就能直接联机。<br>
         网页版和小游戏版现在共用同一套房间与对战后端。
@@ -1770,6 +1817,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
     <div class="waiting-side">
       <div class="side-title">等待提示</div>
+<<<<<<< HEAD
       <div class="side-chip-row" style="margin-bottom:10px">
         <span class="side-chip strong">房间同步中</span>
         <span class="side-chip">6 人开局</span>
@@ -1780,6 +1828,9 @@ button:disabled { opacity: 0.3; cursor: default !important; }
         <div class="side-list-item"><span class="side-list-dot"></span><span>座位 1、3、5 为一队，2、4、6 为另一队。</span></div>
         <div class="side-list-item"><span class="side-list-dot"></span><span>人齐后由房主开始游戏，其他人会自动同步进入牌桌。</span></div>
       </div>
+=======
+      <div class="side-text" id="waiting-side-main">等待玩家加入...</div>
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       <div class="side-note" id="wait-hint">等待玩家加入...</div>
     </div>
   </div>
@@ -2317,6 +2368,14 @@ function renderMyHand(state) {
   const hand = state.myHand;
   if (!hand || hand.length === 0) return;
 
+<<<<<<< HEAD
+=======
+  const nonThreeCount = hand.filter(c => c.rank !== 3).length;
+  const canPlay3 = nonThreeCount === 0;
+  const isKaiDianTurn = state.canKaiDian === state.mySeat;
+  const isReturnPhase = state.pendingReturnTask?.owedBy === state.mySeat;
+
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   const groups = [];
   let cur = null;
   for (const card of hand) {
@@ -2331,8 +2390,20 @@ function renderMyHand(state) {
     const groupEl = document.createElement('div');
     groupEl.className = 'card-group';
     const ov = group.cards.length <= 4 ? 18 : 14;
+<<<<<<< HEAD
     const selectableCards = getSelectableCards(group.cards);
     const groupLocked = selectableCards.length === 0;
+=======
+
+    let isLocked = false;
+    if (isReturnPhase) {
+      isLocked = group.cards.every(card => !!card.tributeReceived);
+    } else if (isKaiDianTurn) {
+      isLocked = group.rank !== 4;
+    } else {
+      isLocked = (group.rank === 3 && !canPlay3);
+    }
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 
     group.cards.forEach((card, idx) => {
       const el = createCardEl(card);
@@ -2391,7 +2462,13 @@ function renderMyHand(state) {
       const lock = document.createElement('div');
       lock.className = 'group-count';
       lock.style.color = '#f87171';
+<<<<<<< HEAD
       lock.textContent = group.cards[0]?.tributeReceived ? '🔒贡牌' : (group.rank === 3 ? '🔒末手' : '🔒仅4');
+=======
+      if (isReturnPhase) lock.textContent = '🔒贡牌';
+      else if (isKaiDianTurn && group.rank !== 4) lock.textContent = '🔒仅4';
+      else lock.textContent = group.rank === 3 ? '🔒末手' : '🔒开点';
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       groupEl.appendChild(lock);
     }
 
@@ -2438,6 +2515,7 @@ function renderRankings(state) {
       statuses.length ? `<div style="color:#f0d080">状态：${statuses.join(' / ')}</div>` : '',
       `<div style="margin-top:6px;color:rgba(255,255,255,0.65)">${hint}</div>`
     ].filter(Boolean).join('');
+<<<<<<< HEAD
   }
 
   const sideMain = document.getElementById('waiting-side-main');
@@ -2447,6 +2525,8 @@ function renderRankings(state) {
   }
   if (waitHint) {
     waitHint.textContent = `当前房间已进入对局中。你的位置：${getPlayerName(state, state.mySeat)}`;
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   }
 }
 
@@ -2594,6 +2674,11 @@ function clearSelection() {
   refreshGameView();
 }
 
+function clearSelection() {
+  selectedCards = [];
+  if (currentState) showGame(currentState);
+}
+
 function beginDragSelect(card, e) {
   clearTimeout(dragSelectState.timer);
   dragSelectState.timer = setTimeout(() => {
@@ -2639,28 +2724,40 @@ function doPlay() {
   if (selectedCards.length === 0) { toast('请先选牌'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal' });
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doNormalFour() {
   if (selectedCards.length === 0) { toast('请先选4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal4' });
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doKaiDian() {
   if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'kaidian' });
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doCallGong() {
   if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'callgong' });
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doReturnTribute() {
@@ -2675,19 +2772,28 @@ function doReturnTribute() {
   }
   socket.emit('return_tribute', { cardIds: selectedCards.map(c => c.id) });
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doPass() {
   socket.emit('pass');
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doLet() {
   socket.emit('let_teammate');
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function renderTimer(state) {
@@ -2718,13 +2824,19 @@ function renderTimer(state) {
 function doNaoji() {
   socket.emit('naoji');
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doGrab() {
   socket.emit('grab');
   selectedCards = [];
+<<<<<<< HEAD
   refreshGameView();
+=======
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doJiangThrow() {
@@ -2876,6 +2988,7 @@ function toast(msg) {
 
 // ============ INIT ============
 const originPill = document.getElementById('server-origin-pill');
+<<<<<<< HEAD
 const originText = document.getElementById('server-origin-text');
 if (originPill && typeof window !== 'undefined' && window.location) {
   originPill.textContent = `服务地址：${window.location.origin || '当前站点'}`;
@@ -2883,6 +2996,11 @@ if (originPill && typeof window !== 'undefined' && window.location) {
 if (originText && typeof window !== 'undefined' && window.location) {
   originText.textContent = window.location.origin || '当前站点';
 }
+=======
+if (originPill && typeof window !== 'undefined' && window.location) {
+  originPill.textContent = `服务地址：${window.location.origin || '当前站点'}`;
+}
+>>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 
 connect();
 
