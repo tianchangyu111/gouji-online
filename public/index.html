@@ -1996,6 +1996,525 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 <body>
 <div id="rotate-tip">建议横屏体验更舒服</div>
 
+/* ============ POLISHED TABLE REDESIGN ============ */
+#game {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255,226,138,0.08), transparent 26%),
+    radial-gradient(circle at 50% 38%, #2b8444 0%, #17562c 42%, #0b3018 78%, #06160d 100%);
+}
+
+#game::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14vh;
+  background: linear-gradient(to top, rgba(52,27,13,0.95), rgba(80,48,26,0.58) 42%, rgba(80,48,26,0) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+#player-labels,
+#played-areas {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.plabel {
+  gap: 6px;
+}
+
+.plabel .seat-shell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 138px;
+}
+
+.plabel.pos-1 .seat-shell,
+.plabel.pos-2 .seat-shell,
+.plabel.pos-5 .seat-shell {
+  flex-direction: row-reverse;
+}
+
+.plabel .seat-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.18);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.26);
+  flex-shrink: 0;
+  background:
+    radial-gradient(circle at 35% 32%, rgba(255,255,255,0.26), transparent 34%),
+    radial-gradient(circle at 50% 50%, rgba(255,225,160,0.24), transparent 60%),
+    linear-gradient(145deg, rgba(34,49,38,0.98), rgba(8,18,13,0.96));
+  position: relative;
+  overflow: hidden;
+}
+
+.plabel .seat-avatar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  transform: translate(-50%, -62%);
+  background: rgba(255,255,255,0.16);
+  box-shadow: 0 19px 0 7px rgba(255,255,255,0.12);
+}
+
+.plabel .seat-body {
+  background: rgba(5,15,10,0.72);
+  border: 1px solid rgba(242,209,134,0.14);
+  border-radius: 18px;
+  padding: 8px 12px;
+  min-width: 120px;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+}
+
+.plabel .seat-body.is-turn {
+  background: rgba(242,209,134,0.12);
+  border-color: rgba(242,209,134,0.42);
+  box-shadow: 0 0 18px rgba(242,209,134,0.18);
+}
+
+.plabel .name-tag {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plabel .name-tag .role-tag {
+  font-size: 11px;
+  color: rgba(255,255,255,0.52);
+}
+
+.plabel .card-info {
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.plabel .seat-tags {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.plabel.pos-1 .seat-tags,
+.plabel.pos-2 .seat-tags,
+.plabel.pos-5 .seat-tags {
+  justify-content: flex-end;
+}
+
+.plabel .seat-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--gold-light);
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.plabel .action-text,
+.plabel .finish-text {
+  font-size: 12px;
+}
+
+.plabel.pos-0 { bottom: 150px; left: 50%; transform: translateX(-50%); }
+.plabel.pos-1 { bottom: 27%; right: 26px; align-items: flex-end; }
+.plabel.pos-2 { top: 13%; right: 26px; align-items: flex-end; }
+.plabel.pos-3 { top: 18px; left: 50%; transform: translateX(-50%); }
+.plabel.pos-4 { top: 13%; left: 26px; align-items: flex-start; }
+.plabel.pos-5 { bottom: 27%; left: 26px; align-items: flex-start; }
+
+#played-areas {
+  z-index: 4;
+}
+
+.center-stage {
+  position: absolute;
+  left: 50%;
+  top: 21%;
+  transform: translateX(-50%);
+  width: min(52vw, 640px);
+  min-height: 170px;
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at center, rgba(255,215,128,0.10), transparent 44%),
+    linear-gradient(to bottom, rgba(11,43,22,0.74), rgba(7,25,13,0.82));
+  border: 1px solid rgba(242,209,134,0.10);
+  box-shadow: inset 0 0 0 12px rgba(255,255,255,0.02);
+}
+
+.center-stage::before,
+.center-stage::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  bottom: 22px;
+  width: 1px;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.08);
+}
+
+.center-stage::after {
+  left: 22px;
+  right: 22px;
+  top: 50%;
+  width: auto;
+  height: 1px;
+  transform: none;
+}
+
+.event-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: clamp(32px, 4vw, 58px);
+  letter-spacing: 8px;
+  text-shadow: 0 0 26px rgba(255,92,72,0.26);
+}
+
+.event-burst.burn {
+  color: #ffd9cf;
+}
+
+.event-burst.gold {
+  color: var(--gold-light);
+  text-shadow: 0 0 22px rgba(240,208,128,0.22);
+}
+
+.event-sub {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 42px);
+  transform: translateX(-50%);
+  color: rgba(255,255,255,0.72);
+  font-size: 13px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.played-area {
+  gap: 8px;
+  max-width: min(35vw, 320px);
+}
+
+.played-area .played-stack {
+  display: inline-flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+}
+
+.played-area .card {
+  width: 56px;
+  height: 80px;
+  border-radius: 10px;
+}
+
+.played-area .card .rank {
+  font-size: 16px;
+}
+
+.played-area .card .suit {
+  font-size: 18px;
+}
+
+.played-area .play-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.84);
+}
+
+.played-area .play-tag.gouji {
+  color: var(--gold-light);
+  background: rgba(212,168,67,0.18);
+}
+
+.played-area .play-tag.kaidian,
+.played-area .play-tag.normal4 {
+  color: #d8f4ff;
+  background: rgba(72,160,220,0.18);
+}
+
+.played-area.ppos-0 { bottom: 180px; left: 50%; transform: translateX(-50%); }
+.played-area.ppos-1 { bottom: 31%; right: 10%; justify-content: flex-end; }
+.played-area.ppos-2 { top: 21%; right: 10%; justify-content: flex-end; }
+.played-area.ppos-3 { top: 14%; left: 50%; transform: translateX(-50%); }
+.played-area.ppos-4 { top: 21%; left: 10%; justify-content: flex-start; }
+.played-area.ppos-5 { bottom: 31%; left: 10%; justify-content: flex-start; }
+
+#rankings-panel {
+  bottom: 26px;
+  left: 18px;
+  width: clamp(176px, 19vw, 230px);
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: linear-gradient(to bottom, rgba(7,16,11,0.90), rgba(5,13,9,0.96));
+  border-color: rgba(242,209,134,0.12);
+}
+
+#rankings-panel h4 {
+  font-size: 20px;
+  letter-spacing: 3px;
+}
+
+#rank-list .rank-row,
+#my-meta .meta-row {
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.03);
+  margin-bottom: 4px;
+}
+
+#bottom-panel {
+  inset: auto 0 0 0;
+  height: 0;
+}
+
+#panel-top {
+  top: 14px;
+  left: 18px;
+  right: 18px;
+  min-height: 54px;
+  border-radius: 20px;
+  background: rgba(5,12,9,0.76);
+  border-color: rgba(242,209,134,0.12);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.24);
+}
+
+#turn-timer {
+  font-size: 18px;
+}
+
+#panel-meta {
+  max-width: 52%;
+  line-height: 1.5;
+}
+
+#actions {
+  right: 18px;
+  bottom: 26px;
+  width: clamp(248px, 28vw, 344px);
+  padding: 16px;
+  border-radius: 22px;
+  background: linear-gradient(to bottom, rgba(7,16,11,0.90), rgba(5,13,9,0.96));
+  border-color: rgba(242,209,134,0.12);
+}
+
+#actions button {
+  min-width: calc(50% - 5px);
+  min-height: 52px;
+  font-size: 18px;
+  letter-spacing: 2px;
+  border-radius: 14px;
+}
+
+#my-hand-wrap {
+  left: clamp(210px, 23vw, 284px);
+  right: clamp(262px, 28vw, 372px);
+  bottom: 20px;
+  padding: 18px 16px 28px;
+  border-radius: 24px;
+  background: linear-gradient(to bottom, rgba(7,16,11,0.88), rgba(5,13,9,0.96));
+  border-color: rgba(242,209,134,0.12);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.24);
+}
+
+#my-hand {
+  min-height: 162px;
+  padding: 8px 10px 34px;
+}
+
+.card-group {
+  min-height: 150px;
+}
+
+.card {
+  width: 74px;
+  height: 108px;
+  border-radius: 12px;
+}
+
+.card .rank {
+  font-size: 20px;
+}
+
+.card .suit {
+  font-size: 22px;
+}
+
+.group-count {
+  min-width: 52px;
+  min-height: 32px;
+  font-size: 18px;
+  bottom: -13px;
+}
+
+@media (max-width: 980px) {
+  .center-stage {
+    width: min(60vw, 520px);
+    min-height: 148px;
+    top: 23%;
+  }
+
+  #panel-meta {
+    max-width: 60%;
+    font-size: 11px;
+  }
+
+  #rankings-panel {
+    width: 156px;
+    padding: 12px 14px;
+  }
+
+  #actions {
+    width: clamp(214px, 26vw, 254px);
+    padding: 12px;
+  }
+
+  #actions button {
+    min-height: 46px;
+    font-size: 15px;
+  }
+
+  #my-hand-wrap {
+    left: 168px;
+    right: 220px;
+    padding: 12px 10px 22px;
+  }
+
+  .card {
+    width: 60px;
+    height: 88px;
+  }
+
+  .played-area .card {
+    width: 46px;
+    height: 68px;
+  }
+
+  .plabel .seat-avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .plabel .name-tag {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 780px) {
+  .center-stage {
+    top: 20%;
+    width: 66vw;
+    min-height: 126px;
+  }
+
+  .event-burst {
+    font-size: 30px;
+    letter-spacing: 4px;
+  }
+
+  .event-sub {
+    top: calc(50% + 28px);
+    font-size: 11px;
+  }
+
+  #panel-top {
+    left: 10px;
+    right: 10px;
+    top: 8px;
+    min-height: 44px;
+    padding: 8px 10px;
+  }
+
+  #turn-timer {
+    font-size: 14px;
+  }
+
+  #panel-meta {
+    max-width: 58%;
+    font-size: 10px;
+  }
+
+  #rankings-panel {
+    left: 10px;
+    bottom: 10px;
+    width: 144px;
+    padding: 10px 12px;
+  }
+
+  #rankings-panel h4 {
+    font-size: 16px;
+  }
+
+  #actions {
+    right: 10px;
+    bottom: 10px;
+    width: 208px;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  #actions button {
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  #my-hand-wrap {
+    left: 150px;
+    right: 188px;
+    bottom: 10px;
+  }
+
+  .card {
+    width: 54px;
+    height: 80px;
+  }
+
+  .played-area .card {
+    width: 38px;
+    height: 56px;
+  }
+
+  .plabel.pos-1,
+  .plabel.pos-2 {
+    right: 8px;
+  }
+
+  .plabel.pos-4,
+  .plabel.pos-5 {
+    left: 8px;
+  }
+}
+
 <!-- ============ LOBBY ============ -->
 <div id="lobby">
   <div class="lobby-title">够 级</div>
@@ -2679,12 +3198,25 @@ function renderLabels(state) {
       actionHtml = '<div class="action-text" style="color:rgba(255,255,255,0.35)">超时</div>';
     }
 
+    const pills = [];
+    if (streak > 0) pills.push(`<span class="seat-pill">点${streak}</span>`);
+    if ((state.dianTributeDebt?.[abs] ?? 0) > 0) pills.push(`<span class="seat-pill">贡${state.dianTributeDebt[abs]}</span>`);
+    if ((state.burnTributeDebt?.[abs] ?? 0) > 0) pills.push(`<span class="seat-pill">烧${state.burnTributeDebt[abs]}</span>`);
+    if ((state.menTributeDebt?.[abs] ?? 0) > 0) pills.push(`<span class="seat-pill">闷${state.menTributeDebt[abs]}</span>`);
+
     html += `<div class="plabel pos-${rel}">
-      <div class="name-tag ${isTurn ? 'is-turn' : ''}">
-        <span class="team-indicator" style="background:${isTeamA ? '#cc4444' : '#3377cc'}"></span>
-        ${name} ${extra}
+      <div class="seat-shell">
+        <div class="seat-avatar" style="border-color:${isTeamA ? '#cc4444' : '#3377cc'}"></div>
+        <div class="seat-body ${isTurn ? 'is-turn' : ''}">
+          <div class="name-tag">
+            <span class="team-indicator" style="background:${isTeamA ? '#cc4444' : '#3377cc'}"></span>
+            ${name}
+            ${extra ? `<span class="role-tag">${extra}</span>` : ''}
+          </div>
+          ${statusHtml}
+          ${pills.length ? `<div class="seat-tags">${pills.join('')}</div>` : ''}
+        </div>
       </div>
-      ${statusHtml}
       ${actionHtml}
     </div>`;
   }
@@ -2693,19 +3225,25 @@ function renderLabels(state) {
 
 function renderPlayedAreas(state) {
   const container = document.getElementById('played-areas');
-  let html = '';
+  const stage = getStageEventClient(state);
+  let html = `<div class="center-stage">
+    <div class="event-burst ${stage.kind}">${stage.label}</div>
+    <div class="event-sub">${stage.sub}</div>
+  </div>`;
   for (let abs = 0; abs < 6; abs++) {
     const rel = getRelativeSeat(abs, state.mySeat);
     const act = state.playerActions[abs];
     let content = '';
     if (act && act.type === 'play' && act.cards) {
+      content += '<div class="played-stack">';
       act.cards.forEach(c => { content += cardHTML(c, true); });
+      content += '</div>';
       if (act.isKaiDian) {
-        content += '<span class="kaidian-tag">开 点 !</span>';
+        content += '<span class="play-tag kaidian">开 点</span>';
       } else if (act.isNormalFour) {
-        content += '<span class="kaidian-tag" style="color:#c8f0ff;background:rgba(72,160,220,0.18);border-color:rgba(120,200,255,0.4)">平 出 4</span>';
+        content += '<span class="play-tag normal4">平 出 4</span>';
       } else if (isGoujiPlayClient(act.cards)) {
-        content += '<span class="gouji-tag">够级</span>';
+        content += `<span class="play-tag gouji">${state.activeBurns?.[abs] ? '烧牌' : '够级'}</span>`;
       }
     }
     html += `<div class="played-area ppos-${rel}">${content}</div>`;
@@ -2804,11 +3342,11 @@ function renderMyHand(state) {
 function renderRankings(state) {
   const el = document.getElementById('rank-list');
   const rankHtml = (!state.rankings || state.rankings.length === 0)
-    ? '<div style="color:rgba(255,255,255,0.38);font-size:11px">本局暂无名次</div>'
+    ? '<div class="rank-row" style="color:rgba(255,255,255,0.38);font-size:11px">本局暂无名次</div>'
     : state.rankings.map((s, i) => {
       const name = getPlayerName(state, s);
       const team = TEAM_A.includes(s) ? '红' : '蓝';
-      return `<div style="font-size:12px;padding:2px 0">${RANK_LABELS[i+1]} · ${team}队 · ${name}</div>`;
+      return `<div class="rank-row" style="font-size:12px">${RANK_LABELS[i+1]} · ${team}队 · ${name}</div>`;
     }).join('');
   el.innerHTML = `<div style="font-size:11px;color:rgba(255,255,255,0.56);margin-bottom:4px">本局排名</div>${rankHtml}`;
 
@@ -2832,15 +3370,15 @@ function renderRankings(state) {
       ? `需还贡 ${state.pendingReturnTask.count} 张`
       : (state.canKaiDian === state.mySeat ? '当前必须处理手里所有4' : (state.myHand?.every(c => c.rank === 3) ? '现在可以把3出完' : '3 只能最后出')));
     myMeta.innerHTML = [
-      `<div>手牌：${state.handCounts?.[state.mySeat] ?? state.myHand?.length ?? 0} 张</div>`,
-      `<div>已选：${selectedCards.length} 张</div>`,
-      `<div>孬急：${used}/${max}</div>`,
-      jiangMax > 0 ? `<div>扔牌：${jiangUsed}/${jiangMax}${state.canJiangThrow ? '（可用）' : ''}</div>` : '',
-      peekMax > 0 ? `<div>验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : ''}</div>` : '',
-      `<div>点贡：${state.dianTributeDebt?.[state.mySeat] ?? 0}　烧贡：${state.burnTributeDebt?.[state.mySeat] ?? 0}</div>`,
-      `<div>闷贡：${state.menTributeDebt?.[state.mySeat] ?? 0}</div>`,
-      statuses.length ? `<div style="color:#f0d080">状态：${statuses.join(' / ')}</div>` : '',
-      `<div style="margin-top:6px;color:rgba(255,255,255,0.65)">${hint}</div>`
+      `<div class="meta-row">手牌：${state.handCounts?.[state.mySeat] ?? state.myHand?.length ?? 0} 张</div>`,
+      `<div class="meta-row">已选：${selectedCards.length} 张</div>`,
+      `<div class="meta-row">孬急：${used}/${max}</div>`,
+      jiangMax > 0 ? `<div class="meta-row">扔牌：${jiangUsed}/${jiangMax}${state.canJiangThrow ? '（可用）' : ''}</div>` : '',
+      peekMax > 0 ? `<div class="meta-row">验牌：${peekUsed}/${peekMax}${state.canPeek ? '（可用）' : ''}</div>` : '',
+      `<div class="meta-row">点贡：${state.dianTributeDebt?.[state.mySeat] ?? 0}　烧贡：${state.burnTributeDebt?.[state.mySeat] ?? 0}</div>`,
+      `<div class="meta-row">闷贡：${state.menTributeDebt?.[state.mySeat] ?? 0}</div>`,
+      statuses.length ? `<div class="meta-row" style="color:#f0d080">状态：${statuses.join(' / ')}</div>` : '',
+      `<div class="meta-row" style="margin-top:6px;color:rgba(255,255,255,0.65)">${hint}</div>`
     ].filter(Boolean).join('');
   }
 
@@ -2894,6 +3432,24 @@ function isGoujiPlayClient(cards) {
   if (baseRank === 13) return baseCount >= 2;
   if (baseRank === 14) return baseCount >= 2;
   return false;
+}
+
+function getStageEventClient(state) {
+  const action = state?.playerActions?.[state?.currentPlayer];
+  if (action?.isKaiDian) {
+    return { label: '开点', sub: `${getPlayerName(state, state.currentPlayer)} 正在处理全部 4`, kind: 'normal4' };
+  }
+  if (action?.isNormalFour) {
+    return { label: '平出4', sub: '这一手没有转成开点', kind: 'normal4' };
+  }
+  if (action?.cards?.length && isGoujiPlayClient(action.cards)) {
+    return {
+      label: state.activeBurns?.[state.currentPlayer] ? '烧牌' : '够级',
+      sub: `${getPlayerName(state, state.currentPlayer)} 打出强牌`,
+      kind: state.activeBurns?.[state.currentPlayer] ? 'burn' : 'gold'
+    };
+  }
+  return { label: '牌桌中央', sub: '当前等待新的强事件触发', kind: 'gold' };
 }
 
 // ============ INTERACTIONS ============
