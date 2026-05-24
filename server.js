@@ -83,8 +83,26 @@ function createRoom(hostSocketId, hostName) {
     forceKaiDianThisRound: [false,false,false,false,false,false],
     nextStarterSeat: -1,
     returnTimer: null,
+    botTimer: null,
+    botMode: false,
   };
   return code;
+}
+
+const BOT_NAMES = ['阿海机', '小陈机', '老张机', '阿勇机', '小梁机', '阿哲机'];
+
+function fillBotsForRoom(room) {
+  if (!room) return;
+  room.botMode = true;
+  while (room.players.length < 6) {
+    const seat = room.players.length;
+    room.players.push({
+      id: `bot:${room.code}:${seat}`,
+      name: BOT_NAMES[seat % BOT_NAMES.length],
+      seat,
+      isBot: true,
+    });
+  }
 }
 
 // ============ CARD HELPERS ============
@@ -255,18 +273,48 @@ function splitJiangThrowGroups(cards) {
   return [...groups.values()].map(group => group.map(cloneCard));
 }
 
+function botRankValue(rank) {
+  if (rank === 3) return 100;
+  if (rank === 4) return 70;
+  if (rank === 15) return 80;
+  if (rank >= 16) return 90;
+  return rank;
+}
+
+function botLeadGroupScore(rank, size, handCount) {
+  const goujiRisk = size >= goujiThreshold(rank) ? 40 : 0;
+  const longGroupPenalty = size >= 4 ? 8 : (size === 3 ? 4 : 0);
+  const preserveSingles = handCount <= 6 && size > 1 ? 10 : 0;
+  return botRankValue(rank) + goujiRisk + longGroupPenalty + preserveSingles;
+}
+
+function botBeatScore(cards, tableCards, requireShao = false) {
+  const a = analyzePlay(cards);
+  const target = analyzePlay(tableCards);
+  if (!a || !target) return Infinity;
+  const jokerCost = ((a.bigJokers || 0) * 40) + ((a.smallJokers || 0) * 28);
+  const twoCost = (a.twos || 0) * 18;
+  const rankCost = a.specialOnly ? (a.baseRank * 3) : (a.baseRank * 2);
+  const overkillPenalty = Math.max(0, (a.baseCount || 0) - (target.baseCount || 0)) * 10;
+  const burnPenalty = requireShao && !a.hasJoker ? 50 : 0;
+  return jokerCost + twoCost + rankCost + overkillPenalty + burnPenalty + cards.length;
+}
+
 
 function chooseTimeoutLeadIds(game, seat) {
   const hand = [...game.hands[seat]].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit);
   const byRankIds = (rank) => hand.filter(c => c.rank === rank).map(c => c.id);
+  const rankCounts = new Map();
+  hand.forEach((card) => rankCounts.set(card.rank, (rankCounts.get(card.rank) || 0) + 1));
 
   if (game.activeBurns?.[seat]) {
     const jokers = hand.filter(c => c.rank >= 16);
     if (jokers.length === 0) return [];
 
-    const normalLead = hand.find(c => c.rank >= 4 && c.rank <= 14);
+    const normalLead = hand.find(c => c.rank >= 5 && c.rank <= 14);
     if (normalLead) {
-      return [...byRankIds(normalLead.rank), jokers[0].id];
+      const sameRank = byRankIds(normalLead.rank);
+      return [...sameRank, jokers[0].id];
     }
 
     if (jokers.length > 0) {
@@ -282,11 +330,23 @@ function chooseTimeoutLeadIds(game, seat) {
     return [];
   }
 
-  const firstLead = hand.find(c => c.rank !== 3 && c.rank !== 4);
-  if (firstLead) return byRankIds(firstLead.rank);
+  const leadCandidates = [...rankCounts.entries()]
+    .filter(([rank]) => rank !== 3 && rank !== 4 && rank < 15)
+    .sort((a, b) => {
+      const scoreA = botLeadGroupScore(a[0], a[1], hand.length);
+      const scoreB = botLeadGroupScore(b[0], b[1], hand.length);
+      return scoreA !== scoreB ? scoreA - scoreB : a[0] - b[0];
+    });
+  if (leadCandidates.length) return byRankIds(leadCandidates[0][0]);
 
   const fours = hand.filter(c => c.rank === 4);
   if (fours.length > 0) return fours.map(c => c.id);
+
+  const twos = hand.filter(c => c.rank === 15);
+  if (twos.length > 0) return twos.map(c => c.id);
+
+  const jokers = hand.filter(c => c.rank >= 16);
+  if (jokers.length > 0) return [jokers[0].id];
 
   const threes = hand.filter(c => c.rank === 3);
   if (threes.length > 0 && threes.length === hand.length) {
@@ -294,6 +354,61 @@ function chooseTimeoutLeadIds(game, seat) {
     if (check.ok) return threes.map(c => c.id);
   }
   return [];
+}
+
+function chooseAutoBeatIds(game, seat, tableCards, requireShao = false) {
+  const hand = [...(game?.hands?.[seat] || [])];
+  const target = analyzePlay(tableCards);
+  if (!target) return [];
+  const byRank = new Map();
+  hand.forEach((card) => {
+    if (!byRank.has(card.rank)) byRank.set(card.rank, []);
+    byRank.get(card.rank).push(card);
+  });
+  const takeIds = (rank, count) => (byRank.get(rank) || []).slice(0, count).map(card => card.id);
+  const need = target.count;
+  const rankCandidates = target.specialOnly ? [15, 16, 17] : [target.baseRank, 15, 16, 17, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4];
+  let best = null;
+  let bestScore = Infinity;
+
+  for (const baseRank of rankCandidates) {
+    const maxBase = baseRank >= 15 ? 0 : Math.min((byRank.get(baseRank) || []).length, need);
+    const baseStart = baseRank >= 15 ? 0 : 1;
+    for (let useBase = maxBase; useBase >= baseStart; useBase--) {
+      const remain1 = need - useBase;
+      if (remain1 < 0) continue;
+      const maxTwo = Math.min((byRank.get(15) || []).length, remain1);
+      for (let useTwo = maxTwo; useTwo >= 0; useTwo--) {
+        const remain2 = remain1 - useTwo;
+        const maxSmall = Math.min((byRank.get(16) || []).length, remain2);
+        for (let useSmall = maxSmall; useSmall >= 0; useSmall--) {
+          const remain3 = remain2 - useSmall;
+          const maxBig = Math.min((byRank.get(17) || []).length, remain3);
+          for (let useBig = maxBig; useBig >= 0; useBig--) {
+            if (useBase + useTwo + useSmall + useBig !== need) continue;
+            const ids = [
+              ...takeIds(baseRank, useBase),
+              ...takeIds(15, useTwo),
+              ...takeIds(16, useSmall),
+              ...takeIds(17, useBig),
+            ];
+            if (new Set(ids).size !== ids.length) continue;
+            const cards = takeCardsByIds(hand, ids);
+            if (cards.length !== need) continue;
+            if (!canBeat(cards, tableCards)) continue;
+            if (requireShao && !isShaoPlay(cards)) continue;
+            const score = botBeatScore(cards, tableCards, requireShao);
+            if (score < bestScore) {
+              bestScore = score;
+              best = ids;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return best || [];
 }
 
 function clearTurnTimer(room) {
@@ -312,9 +427,21 @@ function clearReturnTimer(room) {
   if (room.game) room.game.returnEndsAt = 0;
 }
 
+function clearBotTimer(room) {
+  if (room?.botTimer) {
+    clearTimeout(room.botTimer);
+    room.botTimer = null;
+  }
+}
+
 function getCurrentReturnTask(game) {
   if (!game || !Array.isArray(game.returnTasks)) return null;
   return game.returnTasks.find(t => !t.done) || null;
+}
+
+function getCurrentBuyFourTask(game) {
+  if (!game || !Array.isArray(game.buyFourTasks)) return null;
+  return game.buyFourTasks.find(t => !t.done) || null;
 }
 
 function finalizeReturnTask(room, task, selectedCards, auto = false) {
@@ -362,6 +489,13 @@ function scheduleTurnTimer(room) {
   clearTurnTimer(room);
   if (!room || !room.game || room.state !== 'playing') return;
   if (getCurrentReturnTask(room.game)) return;
+  const buyFourTask = getCurrentBuyFourTask(room.game);
+  if (buyFourTask) {
+    room.game.currentPlayer = buyFourTask.buyer;
+    room.game.turnEndsAt = Date.now() + 12000;
+    room.turnTimer = setTimeout(() => handleTurnTimeout(room), 12050);
+    return;
+  }
   ensureTurnSeatValid(room);
   const game = room.game;
   if (game.currentPlayer < 0 || game.finished[game.currentPlayer]) return;
@@ -372,6 +506,13 @@ function scheduleTurnTimer(room) {
 function handleTurnTimeout(room) {
   if (!room || !room.game || room.state !== 'playing') return;
   if (getCurrentReturnTask(room.game)) { scheduleReturnTimer(room); return; }
+  const buyFourTask = getCurrentBuyFourTask(room.game);
+  if (buyFourTask) {
+    finalizeBuyFourTask(room, buyFourTask, false);
+    io.to(room.code).emit('toast_msg', { msg: `${getSeatPlayerName(room, buyFourTask.buyer)} 买4超时，已自动跳过` });
+    broadcastState(room);
+    return;
+  }
   const game = room.game;
   const seat = game.currentPlayer;
   const playerName = room.players.find(p => p.seat === seat)?.name || ('座位' + (seat + 1));
@@ -404,6 +545,7 @@ function handleTurnTimeout(room) {
 function processNaoji(room, seat) {
   const game = room.game;
   if (!game || room.state !== 'playing') return { ok: false, msg: '游戏未开始' };
+  if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段不能孬急' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完，不能再孬急' };
   if ((game.naojiUses[seat] || 0) >= (game.naojiMax[seat] || 5)) return { ok: false, msg: '孬急次数已用完' };
 
@@ -470,6 +612,7 @@ function processNaoji(room, seat) {
 function processGrab(room, seat) {
   const game = room.game;
   if (!game || room.state !== 'playing') return { ok: false, msg: '游戏未开始' };
+  if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段不能抓牌' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完，不能再抓' };
 
   const now = Date.now();
@@ -494,6 +637,7 @@ function processGrab(room, seat) {
 function processPeek(room, seat) {
   const game = room.game;
   if (!game || room.state !== 'playing') return { ok: false, msg: '游戏未开始' };
+  if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段不能验牌' };
   const me = room.players.find(p => p.seat === seat);
   if ((me?.name || '').trim() !== '张哲') return { ok: false, msg: '只有张哲可以使用验牌' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完了，不能再验牌' };
@@ -555,6 +699,7 @@ function processPeek(room, seat) {
 function processJiangThrow(room, seat, cardIds) {
   const game = room.game;
   if (!game || room.state !== 'playing') return { ok: false, msg: '游戏未开始' };
+  if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段不能扔牌' };
   const me = room.players.find(p => p.seat === seat);
   if ((me?.name || '').trim() !== '姜海涛') return { ok: false, msg: '只有姜海涛可以使用扔牌' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完了，不能再扔牌' };
@@ -1031,6 +1176,12 @@ function allFoursSelectedIfKaiDian(hand, cards) {
   return all4.length > 0 && cards.length === all4.length && cards.every(c => c.rank === 4);
 }
 
+function allFoursSelectedIfPlayingFour(hand, cards) {
+  if (!cards.some(c => c.rank === 4)) return true;
+  const all4 = hand.filter(c => c.rank === 4);
+  return all4.length > 0 && cards.length === all4.length && cards.every(c => c.rank === 4);
+}
+
 function isSeatResolvedForPass(game, seat) {
   return !!game.finished?.[seat] || game.passedThisRound.includes(seat);
 }
@@ -1094,6 +1245,17 @@ function canVictimFanShao(game, burnerSeat) {
   return true;
 }
 
+function canSeatTakeOverBurn(game, burnerSeat, seat) {
+  const info = game?.activeBurns?.[burnerSeat];
+  if (!info) return false;
+  if (seat < 0 || seat === burnerSeat || game.finished[seat]) return false;
+  if (sameTeam(seat, burnerSeat)) return false;
+  if (seat === getBurnOppositeSeat(game, burnerSeat)) return false;
+  if (seat === info.victim) return false;
+  if (hasPendingUnplayedFourProtection(game, seat)) return false;
+  return true;
+}
+
 function getEligibleRespondersToBurn(game, burnerSeat) {
   const info = game?.activeBurns?.[burnerSeat];
   if (!info) return [];
@@ -1102,6 +1264,9 @@ function getEligibleRespondersToBurn(game, burnerSeat) {
   if (opp >= 0 && !game.finished[opp] && !game.passedThisRound.includes(opp)) responders.push(opp);
   const victim = info.victim;
   if (canVictimFanShao(game, burnerSeat) && !game.passedThisRound.includes(victim)) responders.push(victim);
+  for (const seat of activeSeats(game)) {
+    if (canSeatTakeOverBurn(game, burnerSeat, seat) && !game.passedThisRound.includes(seat)) responders.push(seat);
+  }
   return responders;
 }
 
@@ -1153,7 +1318,7 @@ function maybeGameOver(game) {
 // ============ Tribute / Buy-Three ============
 function chooseCardsExcludingTribute(hand, n, dir = 'low') {
   const safe = hand.filter(c => !c.tributeReceived);
-  const source = safe.length >= n ? safe : hand;
+  const source = safe;
   const sorted = [...source].sort((a, b) => dir === 'low'
     ? ((a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)
     : ((a.rank !== b.rank) ? b.rank - a.rank : a.suit - b.suit));
@@ -1166,6 +1331,16 @@ function getLowestCards(hand, n) {
 
 function getHighestCards(hand, n) {
   return chooseCardsExcludingTribute(hand, n, 'high');
+}
+
+function getRandomCardsExcludingTribute(hand, n) {
+  const safe = hand.filter(c => !c.tributeReceived);
+  const source = [...safe];
+  for (let i = source.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [source[i], source[j]] = [source[j], source[i]];
+  }
+  return source.slice(0, n);
 }
 
 function computePendingTribute(rankings) {
@@ -1208,6 +1383,27 @@ function buildRoundTributes(room) {
   return [...pointItems, ...menItems, ...burnItems, ...laItems];
 }
 
+function applyPointTributeSteal(hands, pendingTribute) {
+  const logs = [];
+  if (!pendingTribute || pendingTribute.length === 0) return logs;
+
+  for (const item of pendingTribute) {
+    if (item.type !== '点贡' || item.count <= 0) continue;
+    const stolen = getRandomCardsExcludingTribute(hands[item.from], item.count);
+    if (!stolen.length) {
+      logs.push({ type: '点贡抽牌', from: item.from, to: item.to, count: 0, stolen: [], note: '无可抽牌' });
+      continue;
+    }
+    hands[item.from] = removeSpecificCards(hands[item.from], stolen);
+    pushCards(hands[item.to], stolen.map(cloneCard));
+    sortHand(hands[item.from]);
+    sortHand(hands[item.to]);
+    logs.push({ type: '点贡抽牌', from: item.from, to: item.to, count: stolen.length, stolen: stolen.map(cardText) });
+  }
+
+  return logs;
+}
+
 function applyTribute(hands, pendingTribute) {
   const tributeLog = [];
   const returnTasks = [];
@@ -1217,14 +1413,17 @@ function applyTribute(hands, pendingTribute) {
   let seq = 1;
   for (const item of pendingTribute) {
     const give = getHighestCards(hands[item.from], item.count);
+    if (!give.length) continue;
     hands[item.from] = removeSpecificCards(hands[item.from], give);
     const received = give.map(card => ({ ...cloneCard(card), tributeReceived: true }));
     pushCards(hands[item.to], received);
     sortHand(hands[item.from]);
     sortHand(hands[item.to]);
     const id = `rt_${seq++}`;
-    tributeLog.push({ id, type: item.type, from: item.from, to: item.to, count: item.count, give: give.map(cardText), back: [] });
-    returnTasks.push({ itemId: id, owedBy: item.to, to: item.from, count: item.count, type: item.type, done: false, back: [] });
+    tributeLog.push({ id, type: item.type, from: item.from, to: item.to, count: give.length, give: give.map(cardText), back: [] });
+    if (item.type === '落贡') {
+      returnTasks.push({ itemId: id, owedBy: item.to, to: item.from, count: give.length, type: item.type, done: false, back: [] });
+    }
   }
   return { tributeLog, returnTasks };
 }
@@ -1248,6 +1447,17 @@ function chooseBuyThreePayment(hand) {
   const big = hand.find(c => c.rank === 17);
   if (big) return big;
   return null;
+}
+
+function findFourProvider(seat, hands) {
+  const duiTou = (seat + 3) % 6;
+  const teammates = TEAM_A.includes(seat) ? TEAM_A.filter(s => s !== seat) : TEAM_B.filter(s => s !== seat);
+  const fallback = [0,1,2,3,4,5].filter(s => s !== seat && s !== duiTou && !teammates.includes(s));
+  const candidates = [duiTou, ...teammates, ...fallback];
+  for (const s of candidates) {
+    if (countRank(hands[s], 4) > 0) return s;
+  }
+  return -1;
 }
 
 function applyBuyThree(hands) {
@@ -1281,8 +1491,65 @@ function applyBuyThree(hands) {
   return buySanLog;
 }
 
+function buildBuyFourTasks(hands) {
+  const tasks = [];
+  const logs = [];
+  for (let seat = 0; seat < 6; seat++) {
+    if (countRank(hands[seat], 4) > 0) continue;
+    const provider = findFourProvider(seat, hands);
+    if (provider === -1) {
+      logs.push({ buyer: seat, seller: -1, paid: '无', got: '4', note: '无人可卖4，跳过' });
+      continue;
+    }
+    tasks.push({ buyer: seat, seller: provider, done: false, skipped: false });
+  }
+  return { tasks, logs };
+}
+
+function finalizeBuyFourTask(room, task, take) {
+  const game = room?.game;
+  if (!game || !task) return false;
+  const log = game.buySanLog || [];
+  if (!take) {
+    task.done = true;
+    task.skipped = true;
+    log.push({ buyer: task.buyer, seller: task.seller, paid: '无', got: '4', note: '主动跳过买4' });
+    scheduleTurnTimer(room);
+    return true;
+  }
+
+  const sellerHand = game.hands[task.seller] || [];
+  const buyerHand = game.hands[task.buyer] || [];
+  const boughtFour = getCardsByRank(sellerHand, 4).slice(-1);
+  if (!boughtFour.length) {
+    task.done = true;
+    task.skipped = true;
+    log.push({ buyer: task.buyer, seller: task.seller, paid: '无', got: '4', note: '卖家已无4，自动跳过' });
+    scheduleTurnTimer(room);
+    return true;
+  }
+
+  const payment = chooseBuyThreePayment(buyerHand);
+  game.hands[task.seller] = removeSpecificCards(sellerHand, boughtFour);
+  pushCards(game.hands[task.buyer], boughtFour);
+
+  let paidText = '赠送';
+  if (payment) {
+    game.hands[task.buyer] = removeSpecificCards(game.hands[task.buyer], [payment]);
+    pushCards(game.hands[task.seller], [payment]);
+    paidText = cardText(payment);
+  }
+
+  sortHand(game.hands[task.buyer]);
+  sortHand(game.hands[task.seller]);
+  task.done = true;
+  log.push({ buyer: task.buyer, seller: task.seller, paid: paidText, got: '4' });
+  scheduleTurnTimer(room);
+  return true;
+}
+
 // ============ GAME STATE ============
-function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySanLog = [], players = [], returnTasks = []) {
+function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySanLog = [], players = [], returnTasks = [], buyFourTasks = []) {
   return {
     hands,
     finished: [false, false, false, false, false, false],
@@ -1302,6 +1569,7 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
     roundNumber,
     tributeLog,
     buySanLog,
+    buyFourTasks,
     playedPool: [],
     activeBurns: [null,null,null,null,null,null],
     failedLastQueue: [],
@@ -1332,14 +1600,15 @@ function getStateForPlayer(room, seat) {
   const me = room.players.find(pp => pp.seat === seat);
 
   const currentReturnTask = getCurrentReturnTask(game);
+  const currentBuyFourTask = getCurrentBuyFourTask(game);
   const prevPlay = game.tablePlay;
   const burnSourceSeat = (prevPlay && game.activeBurns?.[prevPlay.player]) ? prevPlay.player : -1;
   const burnEligible = burnSourceSeat >= 0 ? getEligibleRespondersToBurn(game, burnSourceSeat) : [];
-  const canBurnNow = !currentReturnTask && game.currentPlayer === seat && !game.finished[seat] && !!prevPlay && (activeSeats(game).length || 0) >= 5 && (
+  const canBurnNow = !currentReturnTask && !currentBuyFourTask && !game.finished[seat] && !!prevPlay && (activeSeats(game).length || 0) >= 5 && (
     (burnSourceSeat >= 0 && burnEligible.includes(seat) && seat !== getBurnOppositeSeat(game, burnSourceSeat)) ||
     (burnSourceSeat < 0 && !isResponderOpposite(prevPlay.player, seat) && (prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat)))
   );
-  const canJieShaoNow = !currentReturnTask && game.currentPlayer === seat && !game.finished[seat] && !!prevPlay && burnSourceSeat >= 0 && seat === getBurnOppositeSeat(game, burnSourceSeat);
+  const canJieShaoNow = !currentReturnTask && !currentBuyFourTask && !game.finished[seat] && !!prevPlay && burnSourceSeat >= 0 && seat === getBurnOppositeSeat(game, burnSourceSeat);
   return {
     myHand: game.hands[seat],
     mySeat: seat,
@@ -1360,6 +1629,7 @@ function getStateForPlayer(room, seat) {
     roundNumber: game.roundNumber,
     tributeLog: game.tributeLog || [],
     buySanLog: game.buySanLog || [],
+    buyFourTasks: game.buyFourTasks || [],
     naojiUses: game.naojiUses || [0,0,0,0,0,0],
     naojiMax: game.naojiMax || [5,5,5,5,5,5],
     turnEndsAt: game.turnEndsAt || 0,
@@ -1384,6 +1654,8 @@ function getStateForPlayer(room, seat) {
     returnEndsAt: game.returnEndsAt || 0,
     pendingReturnTask: currentReturnTask && currentReturnTask.owedBy === seat ? currentReturnTask : null,
     hasPendingReturn: !!currentReturnTask,
+    pendingBuyFourTask: currentBuyFourTask && currentBuyFourTask.buyer === seat ? currentBuyFourTask : null,
+    hasPendingBuyFour: !!currentBuyFourTask,
     canBurn: canBurnNow,
     canJieShao: canJieShaoNow,
   };
@@ -1398,9 +1670,102 @@ function getSoundCueForLastAction(room, seat) {
   return 'play';
 }
 
+function isBotSeat(room, seat) {
+  return !!room?.players?.find(p => p.seat === seat && p.isBot);
+}
+
+function runBotStep(room) {
+  if (!room || !room.game || room.state !== 'playing') return;
+  const game = room.game;
+
+  const currentReturnTask = getCurrentReturnTask(game);
+  if (currentReturnTask && isBotSeat(room, currentReturnTask.owedBy)) {
+    const chosen = getLowestCards(game.hands[currentReturnTask.owedBy] || [], currentReturnTask.count);
+    finalizeReturnTask(room, currentReturnTask, chosen, true);
+    io.to(room.code).emit('toast_msg', { msg: `${getSeatPlayerName(room, currentReturnTask.owedBy)} 自动完成还贡` });
+    broadcastState(room);
+    return;
+  }
+
+  const buyFourTask = getCurrentBuyFourTask(game);
+  if (buyFourTask && isBotSeat(room, buyFourTask.buyer)) {
+    const buyerHand = game.hands[buyFourTask.buyer] || [];
+    const payment = chooseBuyThreePayment(buyerHand);
+    const shouldBuy = !!buyFourTask.seller && !!payment && payment.rank <= 16;
+    finalizeBuyFourTask(room, buyFourTask, shouldBuy);
+    io.to(room.code).emit('toast_msg', { msg: `${getSeatPlayerName(room, buyFourTask.buyer)} ${shouldBuy ? '自动选择买4' : '自动跳过买4'}` });
+    broadcastState(room);
+    return;
+  }
+
+  const seat = game.currentPlayer;
+  if (!isBotSeat(room, seat) || game.finished[seat]) return;
+
+  let result = null;
+  if (game.canKaiDian === seat) {
+    const fourIds = getCardsByRank(game.hands[seat], 4).map(card => card.id);
+    const mode = room.forceKaiDianThisRound?.[seat] ? 'kaidian' : 'normal4';
+    result = processPlay(room, seat, fourIds, mode);
+  } else if (game.activeBurns?.[seat]) {
+    const autoIds = chooseTimeoutLeadIds(game, seat);
+    if (autoIds.length) {
+      result = processPlay(room, seat, autoIds, 'normal');
+    } else {
+      maybeFailActiveBurnAtTurnStart(room, seat);
+      if (maybeGameOver(game)) {
+        finishGame(room);
+        return;
+      }
+      scheduleTurnTimer(room);
+      broadcastState(room);
+      return;
+    }
+  } else if (game.tablePlay) {
+    const prevPlay = game.tablePlay;
+    const respondingToBurn = !!game.activeBurns?.[prevPlay.player];
+    const isOpposite = respondingToBurn && seat === getBurnOppositeSeat(game, prevPlay.player);
+    const needBurnResponse = respondingToBurn && !isOpposite;
+    const beatIds = chooseAutoBeatIds(game, seat, prevPlay.cards, needBurnResponse);
+    result = beatIds.length ? processPlay(room, seat, beatIds, 'normal') : processPass(room, seat);
+  } else {
+    const autoIds = chooseTimeoutLeadIds(game, seat);
+    result = autoIds.length ? processPlay(room, seat, autoIds, 'normal') : processPass(room, seat);
+  }
+
+  if (!result || !result.ok) {
+    const fallback = processPass(room, seat);
+    if (!fallback.ok) return;
+    result = fallback;
+  }
+
+  if (result.gameOver || maybeGameOver(game)) {
+    finishGame(room);
+    return;
+  }
+
+  io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat) });
+  scheduleTurnTimer(room);
+  broadcastState(room);
+}
+
+function scheduleBotAction(room) {
+  clearBotTimer(room);
+  if (!room?.botMode || !room.game || room.state !== 'playing') return;
+  const game = room.game;
+  const currentReturnTask = getCurrentReturnTask(game);
+  const currentBuyFourTask = getCurrentBuyFourTask(game);
+  const shouldRun =
+    (currentReturnTask && isBotSeat(room, currentReturnTask.owedBy)) ||
+    (currentBuyFourTask && isBotSeat(room, currentBuyFourTask.buyer)) ||
+    isBotSeat(room, game.currentPlayer);
+  if (!shouldRun) return;
+  room.botTimer = setTimeout(() => runBotStep(room), 450);
+}
+
 function broadcastState(room) {
   ensureTurnSeatValid(room);
   room.players.forEach(p => io.to(p.id).emit('game_state', getStateForPlayer(room, p.seat)));
+  scheduleBotAction(room);
 }
 
 function settleDianTributes(room) {
@@ -1436,6 +1801,7 @@ function settleDianTributes(room) {
 function finishGame(room) {
   clearTurnTimer(room);
   clearReturnTimer(room);
+  clearBotTimer(room);
   room.state = 'gameover';
   resolveRoundEffects(room);
   settleDianTributes(room);
@@ -1455,7 +1821,7 @@ function executeFourChoice(room, seat, cards, kind = 'normal4') {
   const cardIds = cards.map(c => c.id);
   game.hands[seat] = removeCardsByIds(hand, cardIds);
   game.playedPool.push(...cards.map(cloneCard));
-  game.playerActions[seat] = { type: 'play', cards: [...cards], isKaiDian: kind === 'kaidian' || kind === 'autokaidian', isCallGong: kind === 'callgong', isNormalFour: kind === 'normal4', isAutoKaiDian: kind === 'autokaidian' };
+  game.playerActions[seat] = { type: 'play', cards: [...cards], isKaiDian: kind === 'kaidian' || kind === 'autokaidian', isNormalFour: kind === 'normal4', isAutoKaiDian: kind === 'autokaidian' };
 
   if (kind === 'kaidian' || kind === 'autokaidian') {
     game.openedDian[seat] = true;
@@ -1477,12 +1843,24 @@ function executeFourChoice(room, seat, cards, kind = 'normal4') {
 function processPlay(room, seat, cardIds, playMode = 'normal') {
   const game = room.game;
   if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能出牌' };
-  if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
+  if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段，暂不能出牌' };
+  if (!game) return { ok: false, msg: '对局不存在' };
+  const prevPlay = game.tablePlay ? { ...game.tablePlay } : null;
+  const respondingToBurnEarly = !!prevPlay && !!game.activeBurns?.[prevPlay.player];
+  const burnOppSeatEarly = respondingToBurnEarly ? getBurnOppositeSeat(game, prevPlay.player) : -1;
+  const burnVictimSeatEarly = respondingToBurnEarly ? game.activeBurns[prevPlay.player].victim : -1;
+  const canInterruptBurn = respondingToBurnEarly && seat !== game.currentPlayer && (
+    seat === burnOppSeatEarly ||
+    seat === burnVictimSeatEarly ||
+    canSeatTakeOverBurn(game, prevPlay.player, seat)
+  );
+  if (game.currentPlayer !== seat && !canInterruptBurn) return { ok: false, msg: '不是你的回合' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完了' };
 
   const hand = game.hands[seat];
   const cards = takeCardsByIds(hand, cardIds);
   if (cards.length !== cardIds.length) return { ok: false, msg: '无效的牌' };
+  if (!allFoursSelectedIfPlayingFour(hand, cards)) return { ok: false, msg: '出4时必须把手里所有4一起打出' };
   const analyzed = analyzePlay(cards);
   if (!analyzed) return { ok: false, msg: '无效出牌组合' };
   const remainingAfterPlayEarly = hand.filter(c => !cardIds.includes(c.id));
@@ -1490,7 +1868,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (game.activeBurns?.[seat] && (analyzed.bigJokers + analyzed.smallJokers) <= 0 && !isLastThreeBurnException) return { ok: false, msg: '烧牌后每手都必须至少带一张王' };
 
   if (game.canKaiDian === seat) {
-    const kind = (playMode === 'kaidian' || playMode === 'autokaidian') ? playMode : (playMode === 'callgong' ? 'callgong' : 'normal4');
+    const kind = (playMode === 'kaidian' || playMode === 'autokaidian') ? playMode : 'normal4';
     if (!cards.every(c => c.rank === 4)) return { ok: false, msg: '现在只能出4' };
     if (!allFoursSelectedIfKaiDian(hand, cards)) return { ok: false, msg: '此时必须把手里所有4一起打出' };
     return executeFourChoice(room, seat, cards, kind);
@@ -1500,7 +1878,6 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   const threeCheck = canPlayFinalThree(game, seat, cards, remainingAfterPlay);
   if (!threeCheck.ok) return threeCheck;
 
-  const prevPlay = game.tablePlay ? { ...game.tablePlay } : null;
   const oppositeOfPrev = prevPlay ? ((prevPlay.player + 3) % 6) : -1;
   const burnActive = !!prevPlay && !!game.activeBurns?.[prevPlay.player];
   const goujiRestricted = !!prevPlay && activeSeats(game).length >= 5 && prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat);
@@ -1509,14 +1886,16 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   const burnVictimSeat = respondingToBurn ? game.activeBurns[prevPlay.player].victim : -1;
   const isOppositeResponse = !!prevPlay && respondingToBurn && seat === burnOppSeat;
   const isVictimFanShao = !!prevPlay && respondingToBurn && seat === burnVictimSeat;
+  const isOtherBurnTakeover = !!prevPlay && respondingToBurn && canSeatTakeOverBurn(game, prevPlay.player, seat);
   const specialOnlyBypass = !!prevPlay && !respondingToBurn && !isResponderOpposite(prevPlay.player, seat) && goujiRestricted && isSpecialOnlyPlay(analyzed);
   const isBurnResponse = !!prevPlay && activeSeats(game).length >= 5 && (
     (respondingToBurn && isVictimFanShao) ||
+    (respondingToBurn && isOtherBurnTakeover) ||
     (!respondingToBurn && !isResponderOpposite(prevPlay.player, seat) && goujiRestricted && !specialOnlyBypass)
   );
 
-  if (respondingToBurn && !getEligibleRespondersToBurn(game, prevPlay.player).includes(seat)) {
-    return { ok: false, msg: '当前只能反烧或由对门解烧' };
+  if (respondingToBurn && seat !== prevPlay.player && !getEligibleRespondersToBurn(game, prevPlay.player).includes(seat)) {
+    return { ok: false, msg: '当前只能解烧、反烧或接管烧牌' };
   }
   if (prevPlay && !canBeat(cards, prevPlay.cards)) return { ok: false, msg: '压不住！' };
   if (isBurnResponse && !isShaoPlay(cards)) return { ok: false, msg: '现在只能按烧牌规则上牌' };
@@ -1534,7 +1913,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   game.tablePlay = { cards: [...cards], player: seat, isGouji: triggersGouji, isPureGouji: pureGouji, isShao, isJieShao };
   game.passedThisRound = [];
   game.roundStarter = seat;
-  game.playerActions[seat] = { type: 'play', cards: [...cards], isShao, isJieShao, isFanShao: respondingToBurn && isBurnResponse };
+  game.playerActions[seat] = { type: 'play', cards: [...cards], isShao, isJieShao, isFanShao: respondingToBurn && isVictimFanShao, isTakeBurn: respondingToBurn && isOtherBurnTakeover };
   if (respondingToBurn && prevPlay?.player >= 0 && game.activeBurns?.[prevPlay.player]) {
     if (isOppositeResponse) {
       game.playerActions[seat].isJieShao = true;
@@ -1571,11 +1950,30 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (maybeGameOver(game)) return { ok: true, gameOver: true };
 
   if (game.activeBurns?.[seat]) {
-    const responders = getEligibleRespondersToBurn(game, seat).filter(s => !game.finished[s]);
-    if (responders.length > 0) {
-      game.currentPlayer = responders[0];
-      return { ok: true };
+    game.currentPlayer = seat;
+    return { ok: true };
+  }
+
+  if (respondingToBurn && isOppositeResponse) {
+    const next = nextActiveSeat(game, seat);
+    if (next === -1 || next === seat) {
+      const logs = resolveRoundEffects(room);
+      const starter = game.finished[seat] ? pickCounterClockwiseStarter(game, seat) : seat;
+      const res = resetRound(game, starter);
+      return { ...res, roundEffectLogs: logs };
     }
+    game.currentPlayer = next;
+    return { ok: true };
+  }
+
+  if (respondingToBurn && !isOppositeResponse && (isVictimFanShao || isOtherBurnTakeover)) {
+    game.activeBurns[seat] = { victim: prevPlay.player };
+    game.pendingShao = { burner: seat, victim: prevPlay.player };
+    game.currentPlayer = seat;
+    return { ok: true };
+  }
+
+  if (respondingToBurn && prevPlay?.player >= 0 && !game.activeBurns?.[prevPlay.player] && !game.activeBurns?.[seat]) {
     const starter = game.finished[seat] ? pickCounterClockwiseStarter(game, seat) : seat;
     const logs = resolveRoundEffects(room);
     const res = resetRound(game, starter);
@@ -1616,6 +2014,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
 function processPass(room, seat) {
   const game = room.game;
   if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能过牌' };
+  if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段，暂不能过牌' };
   if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
 
   if (game.canKaiDian === seat) {
@@ -1628,21 +2027,13 @@ function processPass(room, seat) {
   }
 
   if (!game.tablePlay) return { ok: false, msg: '现在不能过牌' };
+  if (game.activeBurns?.[seat]) return { ok: false, msg: '烧牌过程中不能过牌' };
 
   game.passedThisRound.push(seat);
   game.playerActions[seat] = { type: 'pass' };
 
   if (game.tablePlay && game.activeBurns?.[game.tablePlay.player]) {
-    const burnerSeat = game.tablePlay.player;
-    const responders = getEligibleRespondersToBurn(game, burnerSeat).filter(s => !game.finished[s]);
-    if (responders.length > 0) {
-      game.currentPlayer = responders[0];
-      return { ok: true };
-    }
-    const starter = game.finished[burnerSeat] ? pickCounterClockwiseStarter(game, burnerSeat) : burnerSeat;
-    const logs = resolveRoundEffects(room);
-    const res = resetRound(game, starter);
-    return { ...res, roundEffectLogs: logs };
+    return { ok: false, msg: '烧牌过程中不能过牌' };
   }
 
   if (game.isGoujiMode) {
@@ -1709,6 +2100,7 @@ function processPass(room, seat) {
 function processLet(room, seat) {
   const game = room.game;
   if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能让牌' };
+  if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段，暂不能让牌' };
   if (!game || game.currentPlayer !== seat) return { ok: false, msg: '不是你的回合' };
   if (!canLetTeammate(game, seat)) return { ok: false, msg: '当前不能让牌' };
   game.passedThisRound.push(seat);
@@ -1744,6 +2136,17 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('create_bot_room', ({ name }) => {
+    const code = createRoom(socket.id, name || '房主');
+    fillBotsForRoom(rooms[code]);
+    currentRoom = code;
+    currentSeat = 0;
+    socket.join(code);
+    const players = rooms[code].players.map(p => ({ name: p.name, seat: p.seat, isBot: !!p.isBot }));
+    socket.emit('room_joined', { code, seat: 0, players });
+    io.to(code).emit('player_list', { players });
+  });
+
   socket.on('join_room', ({ code, name }) => {
     const room = rooms[(code || '').toUpperCase()];
     if (!room) return socket.emit('error_msg', { msg: '房间不存在！' });
@@ -1771,14 +2174,18 @@ io.on('connection', (socket) => {
     const luckySeat = getLuckyBoostSeat(room.players);
     const hands = deal(cheatSeat, luckySeat);
 
-    const tributeRes = applyTribute(hands, buildRoundTributes(room));
-    const tributeLog = tributeRes.tributeLog;
+    const roundTributes = buildRoundTributes(room);
+    const stealLog = applyPointTributeSteal(hands, roundTributes);
+    const tributeRes = applyTribute(hands, roundTributes);
+    const tributeLog = [...stealLog, ...tributeRes.tributeLog];
     const buySanLog = applyBuyThree(hands);
+    const buyFourRes = buildBuyFourTasks(hands);
+    buySanLog.push(...buyFourRes.logs);
 
     const firstPlayer = (room.nextStarterSeat >= 0 && room.nextStarterSeat < 6)
       ? room.nextStarterSeat
       : (cheatSeat >= 0 ? cheatSeat : Math.floor(Math.random() * 6));
-    room.game = createGameState(hands, firstPlayer, room.nextRoundNumber++, tributeLog, buySanLog, room.players, tributeRes.returnTasks);
+    room.game = createGameState(hands, firstPlayer, room.nextRoundNumber++, tributeLog, buySanLog, room.players, tributeRes.returnTasks, buyFourRes.tasks);
     room.game.forceKaiDianThisRound = [...(room.forceKaiDianThisRound || [false,false,false,false,false,false])];
     room.state = 'playing';
     room.cheatArmed = false;
@@ -1800,6 +2207,28 @@ io.on('connection', (socket) => {
     if (cards.some(c => c.tributeReceived)) return socket.emit('error_msg', { msg: '收到的贡牌本局不能再被进贡/还贡' });
     finalizeReturnTask(room, task, cards, false);
     io.to(currentRoom).emit('toast_msg', { msg: `${getSeatPlayerName(room, currentSeat)} 已完成还贡` });
+    broadcastState(room);
+  });
+
+  socket.on('buy_four', () => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const task = getCurrentBuyFourTask(room.game);
+    if (!task) return socket.emit('error_msg', { msg: '当前无需买4' });
+    if (task.buyer !== currentSeat) return socket.emit('error_msg', { msg: '现在轮不到你决定买4' });
+    finalizeBuyFourTask(room, task, true);
+    io.to(currentRoom).emit('toast_msg', { msg: `${getSeatPlayerName(room, currentSeat)} 选择买4` });
+    broadcastState(room);
+  });
+
+  socket.on('skip_buy_four', () => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const task = getCurrentBuyFourTask(room.game);
+    if (!task) return socket.emit('error_msg', { msg: '当前无需买4' });
+    if (task.buyer !== currentSeat) return socket.emit('error_msg', { msg: '现在轮不到你决定买4' });
+    finalizeBuyFourTask(room, task, false);
+    io.to(currentRoom).emit('toast_msg', { msg: `${getSeatPlayerName(room, currentSeat)} 选择跳过买4` });
     broadcastState(room);
   });
 
@@ -1965,6 +2394,7 @@ io.on('connection', (socket) => {
     if (!room || room.hostId !== socket.id) return;
     clearTurnTimer(room);
     clearReturnTimer(room);
+    clearBotTimer(room);
     room.state = 'waiting';
     room.game = null;
     const playerList = room.players.map(p => ({ name: p.name, seat: p.seat }));
@@ -1981,6 +2411,16 @@ io.on('connection', (socket) => {
     if (room.players.length === 0) {
       clearTurnTimer(room);
       clearReturnTimer(room);
+      clearBotTimer(room);
+      delete rooms[currentRoom];
+      return;
+    }
+
+    const humanPlayers = room.players.filter(p => !p.isBot);
+    if (humanPlayers.length === 0) {
+      clearTurnTimer(room);
+      clearReturnTimer(room);
+      clearBotTimer(room);
       delete rooms[currentRoom];
       return;
     }

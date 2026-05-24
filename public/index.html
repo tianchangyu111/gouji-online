@@ -22,8 +22,9 @@
 body {
   background: #0a0a0a;
   font-family: 'Noto Serif SC', serif;
-  overflow: hidden;
-  height: 100vh; height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 100vh; min-height: 100dvh;
   width: 100vw;
   user-select: none;
   -webkit-user-select: none;
@@ -35,11 +36,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
+  justify-content: flex-start;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
-  padding: 20px;
-  gap: 16px;
+  padding: clamp(16px, 3vw, 28px);
+  gap: clamp(10px, 1.8vw, 16px);
 }
 
 .lobby-title {
@@ -113,11 +115,12 @@ body {
   display: none;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
+  justify-content: flex-start;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
-  padding: 20px;
-  gap: 14px;
+  padding: clamp(16px, 3vw, 28px);
+  gap: clamp(10px, 1.8vw, 16px);
 }
 
 .room-code {
@@ -142,7 +145,7 @@ body {
 }
 
 .player-list {
-  width: 300px;
+  width: 100%;
   background: rgba(0,0,0,0.3);
   border-radius: 12px;
   border: 1px solid rgba(212,168,67,0.2);
@@ -193,7 +196,7 @@ body {
 }
 
 #btn-start {
-  width: 260px;
+  width: 100%;
   padding: 14px;
   font-size: 22px;
   font-family: 'Ma Shan Zheng', cursive;
@@ -319,7 +322,7 @@ body {
 
 /* Cards */
 .card {
-  width: 58px; height: 82px;
+  width: 68px; height: 98px;
   background: #fff;
   border-radius: 9px;
   border: 1px solid rgba(0,0,0,0.18);
@@ -339,7 +342,7 @@ body {
 .card.joker-big,
 .card.joker-small { color: #fff; border-color: rgba(255,255,255,0.25); }
 .card .rank { font-size: 16px; line-height: 1; z-index: 2; }
-.card .suit { font-size: 18px; line-height: 1; z-index: 2; margin-top: 4px; }
+.card .suit { font-size: 20px; line-height: 1; z-index: 2; margin-top: 4px; }
 .card .joker-face {
   position: absolute; inset: 0;
   background-size: cover;
@@ -568,7 +571,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   z-index: 10;
   width: 100%;
   justify-content: flex-start;
-  padding: 4px 6px 18px;
+  padding: 8px 8px 24px;
 }
 
 .card-group {
@@ -576,7 +579,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   align-items: flex-end;
   position: relative;
   flex-shrink: 0;
-  min-height: 110px;
+  min-height: 126px;
+  padding-top: 8px;
 }
 
 .group-count {
@@ -584,12 +588,16 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   bottom: -12px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.82);
   color: var(--gold-light);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
-  padding: 2px 10px;
+  min-width: 42px;
+  min-height: 28px;
+  padding: 2px 12px;
   border-radius: 999px;
   font-family: 'Ma Shan Zheng', cursive;
-  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(212,168,67,0.3);
   z-index: 11;
 }
@@ -1066,10 +1074,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 .lobby-btn,
 #lobby-error,
 .lobby-or {
-  width: min(560px, calc(100vw - 56px));
+  width: 100%;
+  max-width: 100%;
 }
 
-<<<<<<< HEAD
 .lobby-main-card {
   width: 100%;
   padding: 18px;
@@ -1100,7 +1108,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
 .readonly-field {
   width: 100%;
-  min-height: 56px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   padding: 0 18px;
@@ -1114,18 +1122,34 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 .field-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .lobby-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 10px;
   width: 100%;
 }
 
 .lobby-actions .lobby-btn {
   width: 100%;
+}
+
+.lobby-mini-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.lobby-mini-btn {
+  min-height: 28px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(39,72,52,0.86);
+  color: #dbeed9;
+  font-size: 12px;
 }
 
 .hero-chip-row,
@@ -1169,13 +1193,11 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   color: rgba(255,255,255,0.72);
   font-size: 14px;
   line-height: 1.8;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 .lobby-input {
-  height: 56px;
+  height: 52px;
   border-radius: 16px;
   text-align: left;
   padding: 0 18px;
@@ -1184,18 +1206,19 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 }
 
 .lobby-btn {
-  height: 56px;
+  height: 52px;
   border-radius: 16px;
   letter-spacing: 2px;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .lobby-shell,
 .waiting-shell {
-  display: flex;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(240px, 0.78fr);
+  gap: clamp(14px, 2vw, 24px);
   align-items: stretch;
-  width: 100%;
+  width: min(1180px, 100%);
 }
 
 .lobby-left,
@@ -1203,17 +1226,15 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: min(620px, calc(100vw - 56px));
+  width: 100%;
+  min-width: 0;
 }
 
 .lobby-side,
 .waiting-side {
-<<<<<<< HEAD
   position: relative;
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
-  min-width: 260px;
-  flex: 1 1 280px;
+  min-width: 0;
+  width: 100%;
   padding: 18px;
   border-radius: 18px;
   background: linear-gradient(to bottom, rgba(8,18,12,0.72), rgba(7,16,11,0.86));
@@ -1253,7 +1274,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   border: 1px solid rgba(212,168,67,0.18);
 }
 
-<<<<<<< HEAD
 .side-list {
   margin-top: 14px;
   display: flex;
@@ -1279,12 +1299,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   flex: 0 0 auto;
 }
 
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 #waiting {
   justify-content: flex-start;
   align-items: stretch;
-  padding: 28px;
+  padding: 24px;
   gap: 14px;
 }
 
@@ -1300,22 +1318,19 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 .player-list,
 #btn-start,
 #wait-hint {
-  width: min(620px, calc(100vw - 56px));
+  width: 100%;
+  max-width: 100%;
 }
 
 .player-list {
   border-radius: 18px;
   background: rgba(6,14,9,0.52);
   border-color: rgba(242,209,134,0.18);
-<<<<<<< HEAD
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 .player-slot {
   min-height: 46px;
-<<<<<<< HEAD
   border-radius: 14px;
   margin-bottom: 6px;
   padding: 10px 12px;
@@ -1325,17 +1340,12 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
 .player-slot:last-child {
   margin-bottom: 0;
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 #btn-start {
   height: 56px;
   border-radius: 16px;
-<<<<<<< HEAD
   box-shadow: 0 10px 22px rgba(156,106,24,0.22);
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 #game-title {
@@ -1347,8 +1357,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   right: auto;
   top: auto;
   bottom: 20px;
-  min-width: 220px;
-  width: 220px;
+  min-width: 0;
+  width: clamp(164px, 18vw, 220px);
   padding: 14px 16px;
   border-radius: 16px;
   border-color: rgba(242,209,134,0.16);
@@ -1377,14 +1387,11 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   font-size: 12px;
 }
 
-<<<<<<< HEAD
 #rank-list div,
 #my-meta div {
   border-radius: 8px;
 }
 
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 #bottom-panel {
   position: absolute;
   inset: 0;
@@ -1441,7 +1448,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   position: absolute;
   right: 18px;
   bottom: 22px;
-  width: min(330px, 38vw);
+  width: clamp(220px, 28vw, 330px);
   gap: 10px;
   justify-content: flex-start;
   align-content: flex-start;
@@ -1460,16 +1467,13 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   font-size: 16px;
   letter-spacing: 1px;
   border-radius: 12px;
-<<<<<<< HEAD
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(0,0,0,0.18);
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 #my-hand-wrap {
   position: absolute;
-  left: 252px;
-  right: min(366px, calc(38vw + 36px));
+  left: clamp(10px, 19vw, 252px);
+  right: clamp(236px, 31vw, 366px);
   bottom: 18px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -1487,14 +1491,14 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   align-items: flex-end;
   align-content: center;
   gap: 0;
-  min-height: 122px;
+  min-height: 148px;
   width: max-content;
   justify-content: flex-start;
-  padding: 4px 8px 20px;
+  padding: 8px 10px 30px;
 }
 
 .card-group {
-  min-height: 104px;
+  min-height: 134px;
   margin-right: 6px;
 }
 
@@ -1510,7 +1514,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   filter: grayscale(0.15);
 }
 
-<<<<<<< HEAD
 .card {
   backdrop-filter: blur(2px);
 }
@@ -1519,8 +1522,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   transform: translateY(-6px);
 }
 
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 .plabel .name-tag {
   border-radius: 14px;
   border-color: rgba(242,209,134,0.14);
@@ -1539,10 +1540,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   box-shadow: 0 18px 42px rgba(0,0,0,0.34);
 }
 
-@media (max-width: 980px) {
+@media (max-width: 980px) and (orientation: portrait) {
   .lobby-shell,
   .waiting-shell {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .lobby-left,
@@ -1551,18 +1552,242 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   }
 
   #rankings-panel {
-    width: 186px;
-    min-width: 186px;
+    width: clamp(156px, 22vw, 186px);
   }
 
   #my-hand-wrap {
-    left: 214px;
-    right: 320px;
+    left: clamp(10px, 18vw, 214px);
+    right: clamp(220px, 30vw, 320px);
   }
 
   #actions {
-    width: 286px;
+    width: clamp(212px, 30vw, 286px);
   }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  #lobby,
+  #waiting {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+
+  #lobby::before {
+    font-size: clamp(24px, 4vw, 34px);
+    letter-spacing: 4px;
+  }
+
+  .lobby-title,
+  .lobby-sub {
+    display: none;
+  }
+
+  .lobby-shell,
+  .waiting-shell {
+    grid-template-columns: minmax(0, 1.55fr) minmax(210px, 0.62fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  .lobby-main-card,
+  .lobby-side,
+  .waiting-side,
+  .player-list {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .hero-chip-row,
+  .side-chip-row {
+    gap: 6px;
+  }
+
+  .hero-chip,
+  .side-chip,
+  .side-pill {
+    min-height: 24px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .hero-title,
+  .side-title {
+    font-size: 18px;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+
+  .hero-copy,
+  .side-text,
+  .side-note,
+  .side-list-item,
+  .waiting-hint {
+    font-size: 11px;
+    line-height: 1.48;
+  }
+
+  .field-stack {
+    gap: 6px;
+  }
+
+  .field-label {
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .lobby-input,
+  .readonly-field,
+  .lobby-btn,
+  #btn-start {
+    height: 40px;
+    min-height: 40px;
+    font-size: 15px;
+  }
+
+  .lobby-actions {
+    gap: 8px;
+  }
+
+  .lobby-or {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .lobby-mini-btn {
+    min-height: 24px;
+    font-size: 11px;
+  }
+
+  .room-code {
+    font-size: 15px;
+  }
+
+  .room-code span {
+    font-size: 22px;
+    padding: 4px 12px;
+  }
+
+  .player-slot {
+    min-height: 36px;
+    padding: 7px 9px;
+  }
+
+  .player-slot .pname {
+    font-size: 15px;
+  }
+
+  #panel-top {
+    top: 8px;
+    left: 10px;
+    right: 10px;
+    min-height: 38px;
+    padding: 8px 10px;
+  }
+
+  #turn-timer {
+    font-size: 13px;
+  }
+
+  #panel-meta {
+    max-width: 68%;
+    font-size: 11px;
+  }
+
+  #rankings-panel {
+    width: 144px;
+    left: 10px;
+    bottom: 10px;
+    padding: 10px 12px;
+  }
+
+  #rankings-panel h4 {
+    font-size: 15px;
+  }
+
+  #actions {
+    right: 10px;
+    bottom: 10px;
+    width: clamp(196px, 26vw, 220px);
+    padding: 10px;
+    gap: 8px;
+  }
+
+  #actions button {
+    min-width: calc(50% - 4px);
+    flex-basis: calc(50% - 4px);
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  #my-hand-wrap {
+    left: clamp(140px, 17vw, 172px);
+    right: clamp(198px, 25vw, 230px);
+    bottom: 10px;
+    padding: 10px 8px 16px;
+  }
+
+  #my-hand {
+    min-height: 126px;
+    padding: 6px 8px 24px;
+  }
+
+  .card {
+    width: 58px;
+    height: 82px;
+  }
+
+  .card .rank {
+    font-size: 14px;
+  }
+
+  .card .suit {
+    font-size: 16px;
+  }
+
+  .card-group {
+    min-height: 114px;
+  }
+
+  .group-count {
+    min-width: 40px;
+    min-height: 28px;
+    font-size: 15px;
+  }
+
+  .plabel .name-tag {
+    font-size: 16px;
+    padding: 4px 10px;
+  }
+
+  .plabel .card-info,
+  .plabel .action-text,
+  .plabel .finish-text {
+    font-size: 12px;
+  }
+
+  .plabel.pos-0 { bottom: 90px; }
+  .plabel.pos-1 { bottom: 29%; right: max(6px, env(safe-area-inset-right)); }
+  .plabel.pos-2 { top: calc(env(safe-area-inset-top) + 52px); right: max(6px, env(safe-area-inset-right)); }
+  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 4px); }
+  .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 52px); left: max(6px, env(safe-area-inset-left)); }
+  .plabel.pos-5 { bottom: 29%; left: max(6px, env(safe-area-inset-left)); }
+
+  .played-area {
+    max-width: 36vw;
+    gap: 4px;
+  }
+
+  .played-area .card {
+    width: 40px;
+    height: 58px;
+  }
+
+  .played-area.ppos-0 { bottom: 118px; }
+  .played-area.ppos-1 { bottom: 24%; right: 5%; }
+  .played-area.ppos-2 { top: calc(env(safe-area-inset-top) + 78px); right: 5%; }
+  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 32px); }
+  .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 78px); left: 5%; }
+  .played-area.ppos-5 { bottom: 24%; left: 5%; }
 }
 
 @media (max-width: 780px) {
@@ -1583,8 +1808,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   }
 
   #rankings-panel {
-    width: 168px;
-    min-width: 168px;
+    width: 154px;
     left: 10px;
     bottom: 10px;
     padding: 12px;
@@ -1593,7 +1817,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   #actions {
     right: 10px;
     bottom: 10px;
-    width: 248px;
+    width: min(240px, 40vw);
     padding: 10px;
     gap: 8px;
   }
@@ -1606,8 +1830,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   }
 
   #my-hand-wrap {
-    left: 188px;
-    right: 268px;
+    left: 172px;
+    right: min(258px, 42vw);
     bottom: 10px;
     padding: 12px 10px 20px;
   }
@@ -1622,7 +1846,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 }
 
 @media (max-width: 640px) {
-<<<<<<< HEAD
   #lobby {
     padding: 18px;
     gap: 10px;
@@ -1677,6 +1900,10 @@ button:disabled { opacity: 0.3; cursor: default !important; }
     grid-template-columns: 1fr;
   }
 
+  .lobby-mini-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .lobby-or {
     width: 100%;
     text-align: left;
@@ -1684,23 +1911,45 @@ button:disabled { opacity: 0.3; cursor: default !important; }
     font-size: 12px;
   }
 
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   .lobby-side,
   .waiting-side {
     padding: 14px;
   }
 
-<<<<<<< HEAD
   .side-note {
     font-size: 11px;
     line-height: 1.55;
   }
 
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   .side-title {
     font-size: 22px;
+  }
+
+  .side-list-item {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  #game {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  #panel-top {
+    left: 10px;
+    right: 10px;
+    top: 8px;
+    padding: 8px 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  #panel-meta {
+    max-width: 100%;
+    text-align: left;
+    font-size: 11px;
   }
 
   #rankings-panel {
@@ -1708,12 +1957,37 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   }
 
   #actions {
-    width: 220px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 10px;
+    gap: 8px;
+  }
+
+  #actions button {
+    min-width: 0;
+    flex: none;
+    width: 100%;
+    padding: 9px 8px;
+    font-size: 14px;
   }
 
   #my-hand-wrap {
     left: 10px;
-    right: 240px;
+    right: 10px;
+    bottom: 138px;
+    padding: 10px 8px 18px;
+  }
+
+  #my-hand {
+    min-height: 96px;
+  }
+
+  .played-area {
+    max-width: 90vw;
   }
 }
 
@@ -1729,7 +2003,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
   <div class="lobby-shell">
     <div class="lobby-left">
-<<<<<<< HEAD
       <div class="lobby-main-card">
         <div class="hero-chip-row" style="margin-bottom:12px">
           <span class="hero-chip strong">微信同款大厅</span>
@@ -1738,8 +2011,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
         </div>
         <div class="hero-title">进入牌桌</div>
         <div class="hero-copy">
-          输入昵称后可以自己开房，也可以直接输入朋友给你的 4 位房间号加入。
-          这一版网页端已经在视觉和操作上持续往小游戏体验靠拢。
+          先输入昵称。自己创建房间，或用 4 位房间号直接加入。
         </div>
         <div class="field-stack">
           <div>
@@ -1751,52 +2023,43 @@ button:disabled { opacity: 0.3; cursor: default !important; }
             <label class="field-label" for="input-code">房间号</label>
             <input class="lobby-input" id="input-code" placeholder="输入 4 位房间号" maxlength="4" style="text-transform:uppercase" autocomplete="off">
           </div>
-
-          <div>
-            <span class="field-label">服务器</span>
-            <div class="readonly-field" id="server-origin-text">当前站点</div>
-          </div>
         </div>
       </div>
 
       <div class="lobby-actions">
         <button class="lobby-btn btn-primary" onclick="doCreate()">创 建 房 间</button>
+        <button class="lobby-btn btn-secondary" onclick="doCreateBotRoom()">人 机 测 试 房</button>
         <button class="lobby-btn btn-secondary" onclick="doJoin()">加 入 房 间</button>
       </div>
-      <div class="lobby-or">连接同一后端的朋友可直接输入房间号加入</div>
-=======
-      <input class="lobby-input" id="input-name" placeholder="输入你的昵称" maxlength="8" autocomplete="off">
-      <button class="lobby-btn btn-primary" onclick="doCreate()">创 建 房 间</button>
-      <div class="lobby-or">— 或者 —</div>
-      <input class="lobby-input" id="input-code" placeholder="输入房间号" maxlength="4" style="text-transform:uppercase" autocomplete="off">
-      <button class="lobby-btn btn-secondary" onclick="doJoin()">加 入 房 间</button>
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
+      <div class="lobby-mini-actions">
+        <button class="lobby-mini-btn" onclick="startDemoWaiting()">预览等待房</button>
+        <button class="lobby-mini-btn" onclick="startDemoGame()">直接预览牌桌</button>
+      </div>
+      <div class="lobby-or">服务器和迁移说明已下移，先把首屏留给进房操作</div>
       <div id="lobby-error"></div>
     </div>
 
     <div class="lobby-side">
       <div class="side-title">当前同步状态</div>
-<<<<<<< HEAD
       <div class="side-chip-row" style="margin-bottom:10px">
         <span class="side-chip strong">对战主流程已接通</span>
         <span class="side-chip">等待房已同步</span>
         <span class="side-chip">牌桌持续优化中</span>
       </div>
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       <div class="side-text">
         这个网页端已经按微信小游戏当前版本继续同步。
         现在大厅、等待房、牌桌、选牌、验牌、军师、结算都在往同一套体验收。
       </div>
+      <div style="margin-top:12px">
+        <span class="field-label" style="margin-left:0">服务器</span>
+        <div class="readonly-field" id="server-origin-text">当前站点</div>
+      </div>
       <div class="side-pill" id="server-origin-pill">服务地址：当前站点</div>
-<<<<<<< HEAD
       <div class="side-list">
         <div class="side-list-item"><span class="side-list-dot"></span><span>创建房间后，把房间号发给朋友即可一起进入等待房。</span></div>
         <div class="side-list-item"><span class="side-list-dot"></span><span>加入房间只需要昵称和 4 位房间号，不需要额外注册。</span></div>
         <div class="side-list-item"><span class="side-list-dot"></span><span>网页端和小游戏端共用一套联机后端，房间与牌局状态互通。</span></div>
       </div>
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       <div class="side-note">
         如果你把这份 `gouji-online` 部署到公网，朋友打开这个网页就能直接联机。<br>
         网页版和小游戏版现在共用同一套房间与对战后端。
@@ -1817,7 +2080,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
     <div class="waiting-side">
       <div class="side-title">等待提示</div>
-<<<<<<< HEAD
       <div class="side-chip-row" style="margin-bottom:10px">
         <span class="side-chip strong">房间同步中</span>
         <span class="side-chip">6 人开局</span>
@@ -1828,9 +2090,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
         <div class="side-list-item"><span class="side-list-dot"></span><span>座位 1、3、5 为一队，2、4、6 为另一队。</span></div>
         <div class="side-list-item"><span class="side-list-dot"></span><span>人齐后由房主开始游戏，其他人会自动同步进入牌桌。</span></div>
       </div>
-=======
-      <div class="side-text" id="waiting-side-main">等待玩家加入...</div>
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       <div class="side-note" id="wait-hint">等待玩家加入...</div>
     </div>
   </div>
@@ -1859,8 +2118,9 @@ button:disabled { opacity: 0.3; cursor: default !important; }
       <button class="btn-go" id="btn-play" onclick="doPlay()" disabled>出 牌</button>
       <button class="btn-no" id="btn-normal4" onclick="doNormal4()" style="display:none" disabled>平 出 4</button>
       <button class="btn-alert" id="btn-kaidian" onclick="doKaiDian()" style="display:none" disabled>开 点 4</button>
-      <button class="btn-alert" id="btn-callgong" onclick="doCallGong()" style="display:none" disabled>叫 贡 4</button>
       <button class="btn-go" id="btn-return-tribute" onclick="doReturnTribute()" style="display:none" disabled>还 贡</button>
+      <button class="btn-go" id="btn-buy-four" onclick="doBuyFour()" style="display:none" disabled>买 4</button>
+      <button class="btn-no" id="btn-skip-buy-four" onclick="skipBuyFour()" style="display:none" disabled>跳过买4</button>
       <button class="btn-no" id="btn-pass" onclick="doPass()" disabled>过 牌</button>
       <button class="btn-no" id="btn-let" onclick="doLet()" style="display:none" disabled>让 牌</button>
       <button class="btn-special" id="btn-naoji" onclick="doNaoji()" disabled>孬 急</button>
@@ -1882,7 +2142,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
 <!-- Tribute notification -->
 <div id="tribute-overlay">
-  <h3 id="tribute-title">进贡/买三</h3>
+  <h3 id="tribute-title">进贡/买牌</h3>
   <div id="tribute-content"></div>
   <button onclick="closeTribute()">确 定</button>
 </div>
@@ -2127,6 +2387,12 @@ function doCreate() {
   socket.emit('create_room', { name });
 }
 
+function doCreateBotRoom() {
+  const name = document.getElementById('input-name').value.trim() || '房主';
+  if (!socket) connect();
+  socket.emit('create_bot_room', { name });
+}
+
 function doJoin() {
   const name = document.getElementById('input-name').value.trim() || '玩家';
   const code = document.getElementById('input-code').value.trim().toUpperCase();
@@ -2149,6 +2415,92 @@ function showWaiting(code, players) {
   document.getElementById('waiting').style.display = 'flex';
   document.getElementById('room-code-display').textContent = code;
   renderPlayerList(players);
+}
+
+function makeDemoCard(id, rank, suit, tributeReceived = false) {
+  return { id, rank, suit, tributeReceived };
+}
+
+function startDemoWaiting() {
+  mySeat = 0;
+  myRoom = '1234';
+  isHost = true;
+  showWaiting('1234', [
+    { seat: 0, name: document.getElementById('input-name').value.trim() || '玩家' },
+    { seat: 1, name: '阿勇' },
+    { seat: 2, name: '小陈' },
+    { seat: 4, name: '小梁' }
+  ]);
+}
+
+function startDemoGame() {
+  mySeat = 0;
+  myRoom = '1234';
+  isHost = true;
+  const myName = document.getElementById('input-name').value.trim() || '玩家';
+  const state = {
+    mySeat: 0,
+    currentPlayer: 0,
+    roundNumber: 3,
+    playedPoolCount: 34,
+    turnEndsAt: Date.now() + 15000,
+    returnEndsAt: null,
+    pendingReturnTask: null,
+    canPlay: true,
+    canPass: false,
+    canYield: false,
+    canGrab: true,
+    canKaiDian: -1,
+    canNormalFour: false,
+    canPeek: true,
+    canJiangThrow: true,
+    canStrategist: true,
+    players: [
+      { seat: 0, name: myName },
+      { seat: 1, name: '阿勇' },
+      { seat: 2, name: '小陈' },
+      { seat: 3, name: '阿勇2' },
+      { seat: 4, name: '小梁' },
+      { seat: 5, name: '老张' }
+    ],
+    handCounts: [14, 13, 15, 13, 12, 16],
+    finished: [false, false, false, false, false, false],
+    playerActions: {
+      1: { type: 'play', cards: [makeDemoCard('p1', 11, 2), makeDemoCard('p2', 11, 1)] },
+      2: { type: 'play', cards: [makeDemoCard('p3', 10, 0)] },
+      5: { type: 'pass' }
+    },
+    naojiUses: [0, 0, 0, 0, 0, 0],
+    naojiMax: [5, 5, 5, 5, 5, 5],
+    peekUses: [0, 0, 0, 0, 0, 0],
+    peekMax: [1, 1, 1, 1, 1, 1],
+    jiangThrowUses: [0, 0, 0, 0, 0, 0],
+    jiangThrowMax: [1, 1, 1, 1, 1, 1],
+    dianSkipStreak: [0, 0, 0, 0, 0, 0],
+    dianTributeDebt: [0, 0, 0, 0, 0, 0],
+    burnTributeDebt: [0, 0, 0, 0, 0, 0],
+    tributeLog: [],
+    buySanLog: [],
+    myHand: [
+      makeDemoCard('h1', 16, 0),
+      makeDemoCard('h2', 17, 0),
+      makeDemoCard('h3', 2, 0),
+      makeDemoCard('h4', 2, 1),
+      makeDemoCard('h5', 14, 0),
+      makeDemoCard('h6', 14, 1),
+      makeDemoCard('h7', 13, 0),
+      makeDemoCard('h8', 13, 1),
+      makeDemoCard('h9', 12, 2),
+      makeDemoCard('h10', 11, 0),
+      makeDemoCard('h11', 10, 1),
+      makeDemoCard('h12', 10, 2),
+      makeDemoCard('h13', 9, 1),
+      makeDemoCard('h14', 8, 3)
+    ]
+  };
+  currentState = state;
+  selectedCards = [];
+  showGame(state);
 }
 
 function renderPlayerList(players) {
@@ -2204,6 +2556,10 @@ function showGame(state) {
   const hasTable = !!state.tablePlay;
   const isKaiDianTurn = state.canKaiDian === state.mySeat && !state.finished[state.mySeat];
   const isReturnPhase = state.pendingReturnTask?.owedBy === state.mySeat;
+  const isBuyFourPhase = !!state.pendingBuyFourTask;
+  const isBurningSelf = !!state.activeBurns?.[state.mySeat];
+  const canPlayNow = isMyTurn || state.canBurn || state.canJieShao;
+  const canPassNow = isMyTurn && !isBurningSelf;
   const hasSelection = selectedCards.length > 0;
   const returnCount = state.pendingReturnTask?.count || 0;
   const toggleBtn = (id, show, disabled, text = null) => {
@@ -2215,16 +2571,17 @@ function showGame(state) {
   };
 
   toggleBtn('btn-return-tribute', isReturnPhase, !isReturnPhase || selectedCards.length !== returnCount, `还 贡 ${returnCount || ''}`.trim());
-  toggleBtn('btn-play', !isReturnPhase && !isKaiDianTurn, !isMyTurn || isKaiDianTurn);
-  toggleBtn('btn-normal4', !isReturnPhase && isKaiDianTurn, !isKaiDianTurn || !hasSelection);
-  toggleBtn('btn-kaidian', !isReturnPhase && isKaiDianTurn, !isKaiDianTurn || !hasSelection);
-  toggleBtn('btn-callgong', !isReturnPhase && isKaiDianTurn, !isKaiDianTurn || !hasSelection);
-  toggleBtn('btn-pass', !isReturnPhase, !isMyTurn || (!hasTable && !isKaiDianTurn));
-  toggleBtn('btn-let', !isReturnPhase && state.canLet, !state.canLet);
-  toggleBtn('btn-naoji', !isReturnPhase, state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]));
-  toggleBtn('btn-grab', !isReturnPhase, state.finished[state.mySeat]);
-  toggleBtn('btn-jiang-throw', !isReturnPhase && (state.jiangThrowMax?.[state.mySeat] || 0) > 0, !state.canJiangThrow || state.finished[state.mySeat]);
-  toggleBtn('btn-peek', (state.peekMax?.[state.mySeat] || 0) > 0, !state.canPeek || state.finished[state.mySeat]);
+  toggleBtn('btn-buy-four', isBuyFourPhase, !isBuyFourPhase);
+  toggleBtn('btn-skip-buy-four', isBuyFourPhase, !isBuyFourPhase);
+  toggleBtn('btn-play', !isReturnPhase && !isBuyFourPhase && !isKaiDianTurn, !canPlayNow || isKaiDianTurn);
+  toggleBtn('btn-normal4', !isReturnPhase && !isBuyFourPhase && isKaiDianTurn, !isKaiDianTurn || !hasSelection);
+  toggleBtn('btn-kaidian', !isReturnPhase && !isBuyFourPhase && isKaiDianTurn, !isKaiDianTurn || !hasSelection);
+  toggleBtn('btn-pass', !isReturnPhase && !isBuyFourPhase, !canPassNow || (!hasTable && !isKaiDianTurn));
+  toggleBtn('btn-let', !isReturnPhase && !isBuyFourPhase && state.canLet, !state.canLet);
+  toggleBtn('btn-naoji', !isReturnPhase && !isBuyFourPhase, state.finished[state.mySeat] || (state.naojiUses[state.mySeat] >= state.naojiMax[state.mySeat]));
+  toggleBtn('btn-grab', !isReturnPhase && !isBuyFourPhase, state.finished[state.mySeat]);
+  toggleBtn('btn-jiang-throw', !isReturnPhase && !isBuyFourPhase && (state.jiangThrowMax?.[state.mySeat] || 0) > 0, !state.canJiangThrow || state.finished[state.mySeat]);
+  toggleBtn('btn-peek', !isBuyFourPhase && (state.peekMax?.[state.mySeat] || 0) > 0, !state.canPeek || state.finished[state.mySeat]);
   toggleBtn('btn-strategist', state.canStrategist, !state.canStrategist);
   document.getElementById('btn-clear').disabled = !hasSelection;
   if (!state.canStrategist) hideStrategistPanel();
@@ -2302,10 +2659,6 @@ function renderLabels(state) {
     } else if (streak > 0) {
       dianHtml = `<span class="dian-badge dian-closed">未开点·${streak}</span>`;
     }
-    if (state.calledTributeSeats && state.calledTributeSeats[abs]) {
-      dianHtml += '<span class="dian-badge dian-closed">下局叫贡</span>';
-    }
-
     let statusHtml = '';
     if (state.finished[abs]) {
       const ri = state.rankings.indexOf(abs);
@@ -2349,8 +2702,6 @@ function renderPlayedAreas(state) {
       act.cards.forEach(c => { content += cardHTML(c, true); });
       if (act.isKaiDian) {
         content += '<span class="kaidian-tag">开 点 !</span>';
-      } else if (act.isCallGong) {
-        content += '<span class="kaidian-tag" style="color:#ffd6c6;background:rgba(240,109,75,0.18);border-color:rgba(255,178,141,0.4)">叫 贡 4</span>';
       } else if (act.isNormalFour) {
         content += '<span class="kaidian-tag" style="color:#c8f0ff;background:rgba(72,160,220,0.18);border-color:rgba(120,200,255,0.4)">平 出 4</span>';
       } else if (isGoujiPlayClient(act.cards)) {
@@ -2368,14 +2719,6 @@ function renderMyHand(state) {
   const hand = state.myHand;
   if (!hand || hand.length === 0) return;
 
-<<<<<<< HEAD
-=======
-  const nonThreeCount = hand.filter(c => c.rank !== 3).length;
-  const canPlay3 = nonThreeCount === 0;
-  const isKaiDianTurn = state.canKaiDian === state.mySeat;
-  const isReturnPhase = state.pendingReturnTask?.owedBy === state.mySeat;
-
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   const groups = [];
   let cur = null;
   for (const card of hand) {
@@ -2390,20 +2733,8 @@ function renderMyHand(state) {
     const groupEl = document.createElement('div');
     groupEl.className = 'card-group';
     const ov = group.cards.length <= 4 ? 18 : 14;
-<<<<<<< HEAD
     const selectableCards = getSelectableCards(group.cards);
     const groupLocked = selectableCards.length === 0;
-=======
-
-    let isLocked = false;
-    if (isReturnPhase) {
-      isLocked = group.cards.every(card => !!card.tributeReceived);
-    } else if (isKaiDianTurn) {
-      isLocked = group.rank !== 4;
-    } else {
-      isLocked = (group.rank === 3 && !canPlay3);
-    }
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 
     group.cards.forEach((card, idx) => {
       const el = createCardEl(card);
@@ -2462,13 +2793,7 @@ function renderMyHand(state) {
       const lock = document.createElement('div');
       lock.className = 'group-count';
       lock.style.color = '#f87171';
-<<<<<<< HEAD
       lock.textContent = group.cards[0]?.tributeReceived ? '🔒贡牌' : (group.rank === 3 ? '🔒末手' : '🔒仅4');
-=======
-      if (isReturnPhase) lock.textContent = '🔒贡牌';
-      else if (isKaiDianTurn && group.rank !== 4) lock.textContent = '🔒仅4';
-      else lock.textContent = group.rank === 3 ? '🔒末手' : '🔒开点';
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
       groupEl.appendChild(lock);
     }
 
@@ -2501,9 +2826,11 @@ function renderRankings(state) {
     if (state.canJieShao) statuses.push('接烧');
     if (state.isChaosPhase) statuses.push('乱缠');
     if (state.noHeadSeat === state.mySeat) statuses.push('无头');
-    const hint = state.pendingReturnTask?.owedBy === state.mySeat
+    const hint = state.pendingBuyFourTask
+      ? `你当前没有4，可选择向 ${getPlayerName(state, state.pendingBuyFourTask.seller)} 买4或跳过`
+      : (state.pendingReturnTask?.owedBy === state.mySeat
       ? `需还贡 ${state.pendingReturnTask.count} 张`
-      : (state.canKaiDian === state.mySeat ? '当前必须处理手里所有4' : (state.myHand?.every(c => c.rank === 3) ? '现在可以把3出完' : '3 只能最后出'));
+      : (state.canKaiDian === state.mySeat ? '当前必须处理手里所有4' : (state.myHand?.every(c => c.rank === 3) ? '现在可以把3出完' : '3 只能最后出')));
     myMeta.innerHTML = [
       `<div>手牌：${state.handCounts?.[state.mySeat] ?? state.myHand?.length ?? 0} 张</div>`,
       `<div>已选：${selectedCards.length} 张</div>`,
@@ -2515,7 +2842,6 @@ function renderRankings(state) {
       statuses.length ? `<div style="color:#f0d080">状态：${statuses.join(' / ')}</div>` : '',
       `<div style="margin-top:6px;color:rgba(255,255,255,0.65)">${hint}</div>`
     ].filter(Boolean).join('');
-<<<<<<< HEAD
   }
 
   const sideMain = document.getElementById('waiting-side-main');
@@ -2525,8 +2851,6 @@ function renderRankings(state) {
   }
   if (waitHint) {
     waitHint.textContent = `当前房间已进入对局中。你的位置：${getPlayerName(state, state.mySeat)}`;
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
   }
 }
 
@@ -2558,21 +2882,17 @@ function cardHTML(card, mini) {
 
 function isGoujiPlayClient(cards) {
   if (!cards || cards.length === 0) return false;
-  const hasJoker = cards.some(c => c.rank >= 16);
-  if (hasJoker) return true;
-  const r = cards.filter(c => c.rank <= 14);
-  if (r.length === 0) {
-    if (cards.some(c => c.rank === 15)) return true;
-    return false;
-  }
-  const baseRank = r[0].rank;
-  const count = cards.length;
-  if (baseRank === 10 && count >= 5) return true;
-  if (baseRank === 11 && count >= 4) return true;
-  if (baseRank === 12 && count >= 3) return true;
-  if (baseRank === 13 && count >= 2) return true;
-  if (baseRank === 14 && count >= 2) return true;
-  if (baseRank === 15) return true;
+  const normals = cards.filter(c => c.rank >= 3 && c.rank <= 14);
+  const specials = cards.filter(c => c.rank >= 15);
+  if (normals.length === 0) return specials.length > 0;
+  const baseRank = normals[0].rank;
+  if (normals.some(c => c.rank !== baseRank)) return false;
+  const baseCount = normals.length;
+  if (baseRank === 10) return baseCount >= 5;
+  if (baseRank === 11) return baseCount >= 4;
+  if (baseRank === 12) return baseCount >= 3;
+  if (baseRank === 13) return baseCount >= 2;
+  if (baseRank === 14) return baseCount >= 2;
   return false;
 }
 
@@ -2586,6 +2906,10 @@ function getSuggestedSelectCards(card) {
   const hand = currentState?.myHand || [];
   const rankCards = getHandGroupCardsByRank(card.rank);
   if (!rankCards.length) return [card];
+
+  if (card.rank === 4) {
+    return rankCards;
+  }
 
   const isResponseTurn = !!currentState?.tablePlay && currentState?.currentPlayer === currentState?.mySeat;
   const targetCount = currentState?.tablePlay?.cards?.length || 1;
@@ -2674,11 +2998,6 @@ function clearSelection() {
   refreshGameView();
 }
 
-function clearSelection() {
-  selectedCards = [];
-  if (currentState) showGame(currentState);
-}
-
 function beginDragSelect(card, e) {
   clearTimeout(dragSelectState.timer);
   dragSelectState.timer = setTimeout(() => {
@@ -2724,40 +3043,21 @@ function doPlay() {
   if (selectedCards.length === 0) { toast('请先选牌'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal' });
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doNormalFour() {
   if (selectedCards.length === 0) { toast('请先选4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'normal4' });
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doKaiDian() {
   if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
   socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'kaidian' });
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
-}
-
-function doCallGong() {
-  if (selectedCards.length === 0) { toast('请先选中所有4'); return; }
-  socket.emit('play_cards', { cardIds: selectedCards.map(c => c.id), mode: 'callgong' });
-  selectedCards = [];
-<<<<<<< HEAD
-  refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doReturnTribute() {
@@ -2772,28 +3072,35 @@ function doReturnTribute() {
   }
   socket.emit('return_tribute', { cardIds: selectedCards.map(c => c.id) });
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
+}
+
+function doBuyFour() {
+  if (!currentState?.pendingBuyFourTask) {
+    toast('当前不在买4阶段');
+    return;
+  }
+  socket.emit('buy_four');
+}
+
+function skipBuyFour() {
+  if (!currentState?.pendingBuyFourTask) {
+    toast('当前不在买4阶段');
+    return;
+  }
+  socket.emit('skip_buy_four');
 }
 
 function doPass() {
   socket.emit('pass');
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doLet() {
   socket.emit('let_teammate');
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function renderTimer(state) {
@@ -2806,15 +3113,18 @@ function renderTimer(state) {
       return;
     }
     const returnPhase = currentState.pendingReturnTask?.owedBy === currentState.mySeat;
+    const buyFourPhase = !!currentState.pendingBuyFourTask;
     const deadline = returnPhase ? currentState.returnEndsAt : currentState.turnEndsAt;
     if (!deadline) {
-      el.textContent = returnPhase ? '当前阶段：还贡' : '倒计时：--';
+      el.textContent = buyFourPhase ? '当前阶段：买4' : (returnPhase ? '当前阶段：还贡' : '倒计时：--');
       return;
     }
     const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-    const label = returnPhase
+    const label = buyFourPhase
+      ? `当前阶段：买4`
+      : (returnPhase
       ? `当前阶段：还贡｜剩余 ${left}s`
-      : `当前回合：${getPlayerName(currentState, currentState.currentPlayer)}｜剩余 ${left}s${currentState.currentPlayer === currentState.mySeat && !currentState.finished[currentState.mySeat] ? '｜你出牌' : ''}`;
+      : `当前回合：${getPlayerName(currentState, currentState.currentPlayer)}｜剩余 ${left}s${currentState.currentPlayer === currentState.mySeat && !currentState.finished[currentState.mySeat] ? '｜你出牌' : ''}`);
     el.textContent = label;
   };
   tick();
@@ -2824,19 +3134,13 @@ function renderTimer(state) {
 function doNaoji() {
   socket.emit('naoji');
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doGrab() {
   socket.emit('grab');
   selectedCards = [];
-<<<<<<< HEAD
   refreshGameView();
-=======
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 }
 
 function doJiangThrow() {
@@ -2954,16 +3258,22 @@ function showTributeOverlay(state, tLog, bLog) {
   if (tLog && tLog.length) {
     title.textContent = '进贡 / 还贡';
     tLog.forEach(item => {
-      lines.push(`<div class="tribute-item"><span class="t-type">${item.type}</span>${getPlayerName(state, item.from)} → ${getPlayerName(state, item.to)} ：进 ${Array.isArray(item.give) ? item.give.join('、') : ''}　还 ${Array.isArray(item.back) ? item.back.join('、') : ''}</div>`);
+      if (item.type === '点贡抽牌') {
+        lines.push(`<div class="tribute-item"><span class="t-type">点贡抽牌</span>${getPlayerName(state, item.to)} 从 ${getPlayerName(state, item.from)} 随机抽 ${item.count || 0} 张：${Array.isArray(item.stolen) && item.stolen.length ? item.stolen.join('、') : (item.note || '无')}</div>`);
+      } else {
+        lines.push(`<div class="tribute-item"><span class="t-type">${item.type}</span>${getPlayerName(state, item.from)} → ${getPlayerName(state, item.to)} ：进 ${Array.isArray(item.give) ? item.give.join('、') : ''}　还 ${Array.isArray(item.back) ? item.back.join('、') : ''}</div>`);
+      }
     });
   }
   if (bLog && bLog.length) {
-    if (!tLog || !tLog.length) title.textContent = '买三';
+    if (!tLog || !tLog.length) title.textContent = '买牌';
     bLog.forEach(item => {
+      const target = item.got || '3';
+      const tag = target === '4' ? '买4' : '买3';
       if (item.seller === -1) {
-        lines.push(`<div class="tribute-item"><span class="t-type">买三</span>${getPlayerName(state, item.buyer)}：${item.note || '跳过'}</div>`);
+        lines.push(`<div class="tribute-item"><span class="t-type">${tag}</span>${getPlayerName(state, item.buyer)}：${item.note || '跳过'}</div>`);
       } else {
-        lines.push(`<div class="tribute-item"><span class="t-type">买三</span>${getPlayerName(state, item.buyer)} 向 ${getPlayerName(state, item.seller)} 买3，支付：${item.paid}</div>`);
+        lines.push(`<div class="tribute-item"><span class="t-type">${tag}</span>${getPlayerName(state, item.buyer)} 向 ${getPlayerName(state, item.seller)} 买${target}，支付：${item.paid}</div>`);
       }
     });
   }
@@ -2988,7 +3298,6 @@ function toast(msg) {
 
 // ============ INIT ============
 const originPill = document.getElementById('server-origin-pill');
-<<<<<<< HEAD
 const originText = document.getElementById('server-origin-text');
 if (originPill && typeof window !== 'undefined' && window.location) {
   originPill.textContent = `服务地址：${window.location.origin || '当前站点'}`;
@@ -2996,11 +3305,6 @@ if (originPill && typeof window !== 'undefined' && window.location) {
 if (originText && typeof window !== 'undefined' && window.location) {
   originText.textContent = window.location.origin || '当前站点';
 }
-=======
-if (originPill && typeof window !== 'undefined' && window.location) {
-  originPill.textContent = `服务地址：${window.location.origin || '当前站点'}`;
-}
->>>>>>> dd61243bc88c8b7417932d33248200fd7c01fcd6
 
 connect();
 
