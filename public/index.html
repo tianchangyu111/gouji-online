@@ -695,29 +695,52 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   flex-direction: column;
   z-index: 100;
   gap: 16px;
+  pointer-events: auto;
 }
 #gameover.show { display: flex; }
+#gameover .go-card {
+  width: min(560px, calc(100vw - 40px));
+  padding: 28px 26px 24px;
+  border-radius: 24px;
+  background: linear-gradient(to bottom, rgba(8,18,12,0.96), rgba(6,14,10,0.98));
+  border: 1px solid rgba(242,209,134,0.18);
+  box-shadow: 0 28px 60px rgba(0,0,0,0.42);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
 #gameover h2 {
   font-family: 'Ma Shan Zheng', cursive;
-  font-size: 32px;
+  font-size: 38px;
   color: var(--gold);
   letter-spacing: 6px;
+  text-align: center;
 }
 #gameover .go-detail {
   color: #ccc;
-  font-size: 16px;
+  font-size: 17px;
   text-align: center;
-  line-height: 2;
+  line-height: 1.9;
+  white-space: pre-line;
+  max-width: 100%;
 }
 #gameover button {
+  min-width: 210px;
+  min-height: 54px;
   padding: 12px 36px;
-  font-size: 20px;
+  font-size: 22px;
   font-family: 'Ma Shan Zheng', cursive;
   background: linear-gradient(to bottom, #d4a843, #b8922a);
   color: #1a1a1a;
   border: none; border-radius: 10px;
   cursor: pointer;
   letter-spacing: 4px;
+  pointer-events: auto;
+}
+#gameover button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 #peek-overlay {
@@ -1991,11 +2014,6 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   }
 }
 
-</style>
-</head>
-<body>
-<div id="rotate-tip">建议横屏体验更舒服</div>
-
 /* ============ POLISHED TABLE REDESIGN ============ */
 #game {
   background:
@@ -2023,9 +2041,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   pointer-events: none;
 }
 
-.plabel {
-  gap: 6px;
-}
+.plabel { gap: 6px; }
 
 .plabel .seat-shell {
   display: flex;
@@ -2143,9 +2159,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 .plabel.pos-4 { top: 13%; left: 26px; align-items: flex-start; }
 .plabel.pos-5 { bottom: 27%; left: 26px; align-items: flex-start; }
 
-#played-areas {
-  z-index: 4;
-}
+#played-areas { z-index: 4; }
 
 .center-stage {
   position: absolute;
@@ -2194,9 +2208,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   text-shadow: 0 0 26px rgba(255,92,72,0.26);
 }
 
-.event-burst.burn {
-  color: #ffd9cf;
-}
+.event-burst.burn { color: #ffd9cf; }
 
 .event-burst.gold {
   color: var(--gold-light);
@@ -2222,23 +2234,24 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 .played-area .played-stack {
   display: inline-flex;
   gap: 8px;
-  align-items: flex-end;
+  align-items: center;
   flex-wrap: nowrap;
 }
 
 .played-area .card {
-  width: 56px;
-  height: 80px;
+  width: 82px;
+  height: 58px;
   border-radius: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  justify-items: center;
+  padding: 0 8px;
 }
 
-.played-area .card .rank {
-  font-size: 16px;
-}
-
-.played-area .card .suit {
-  font-size: 18px;
-}
+.played-area .card .rank { font-size: 16px; }
+.played-area .card .suit { font-size: 18px; margin-top: 0; }
+.played-area .card .joker-text { left: 6px; bottom: 4px; }
 
 .played-area .play-tag {
   display: inline-flex;
@@ -2293,10 +2306,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   margin-bottom: 4px;
 }
 
-#bottom-panel {
-  inset: auto 0 0 0;
-  height: 0;
-}
+#bottom-panel { inset: auto 0 0 0; height: 0; }
 
 #panel-top {
   top: 14px;
@@ -2309,9 +2319,7 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   box-shadow: 0 14px 30px rgba(0,0,0,0.24);
 }
 
-#turn-timer {
-  font-size: 18px;
-}
+#turn-timer { font-size: 18px; }
 
 #panel-meta {
   max-width: 52%;
@@ -2352,168 +2360,47 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   padding: 8px 10px 34px;
 }
 
-.card-group {
-  min-height: 150px;
-}
-
-.card {
-  width: 74px;
-  height: 108px;
-  border-radius: 12px;
-}
-
-.card .rank {
-  font-size: 20px;
-}
-
-.card .suit {
-  font-size: 22px;
-}
-
-.group-count {
-  min-width: 52px;
-  min-height: 32px;
-  font-size: 18px;
-  bottom: -13px;
-}
+.card-group { min-height: 150px; }
+.card { width: 74px; height: 108px; border-radius: 12px; }
+.card .rank { font-size: 20px; }
+.card .suit { font-size: 22px; }
+.group-count { min-width: 52px; min-height: 32px; font-size: 18px; bottom: -13px; }
 
 @media (max-width: 980px) {
-  .center-stage {
-    width: min(60vw, 520px);
-    min-height: 148px;
-    top: 23%;
-  }
-
-  #panel-meta {
-    max-width: 60%;
-    font-size: 11px;
-  }
-
-  #rankings-panel {
-    width: 156px;
-    padding: 12px 14px;
-  }
-
-  #actions {
-    width: clamp(214px, 26vw, 254px);
-    padding: 12px;
-  }
-
-  #actions button {
-    min-height: 46px;
-    font-size: 15px;
-  }
-
-  #my-hand-wrap {
-    left: 168px;
-    right: 220px;
-    padding: 12px 10px 22px;
-  }
-
-  .card {
-    width: 60px;
-    height: 88px;
-  }
-
-  .played-area .card {
-    width: 46px;
-    height: 68px;
-  }
-
-  .plabel .seat-avatar {
-    width: 44px;
-    height: 44px;
-  }
-
-  .plabel .name-tag {
-    font-size: 15px;
-  }
+  .center-stage { width: min(60vw, 520px); min-height: 148px; top: 23%; }
+  #panel-meta { max-width: 60%; font-size: 11px; }
+  #rankings-panel { width: 156px; padding: 12px 14px; }
+  #actions { width: clamp(214px, 26vw, 254px); padding: 12px; }
+  #actions button { min-height: 46px; font-size: 15px; }
+  #my-hand-wrap { left: 168px; right: 220px; padding: 12px 10px 22px; }
+  .card { width: 60px; height: 88px; }
+  .played-area .card { width: 70px; height: 50px; }
+  .plabel .seat-avatar { width: 44px; height: 44px; }
+  .plabel .name-tag { font-size: 15px; }
 }
 
 @media (max-width: 780px) {
-  .center-stage {
-    top: 20%;
-    width: 66vw;
-    min-height: 126px;
-  }
-
-  .event-burst {
-    font-size: 30px;
-    letter-spacing: 4px;
-  }
-
-  .event-sub {
-    top: calc(50% + 28px);
-    font-size: 11px;
-  }
-
-  #panel-top {
-    left: 10px;
-    right: 10px;
-    top: 8px;
-    min-height: 44px;
-    padding: 8px 10px;
-  }
-
-  #turn-timer {
-    font-size: 14px;
-  }
-
-  #panel-meta {
-    max-width: 58%;
-    font-size: 10px;
-  }
-
-  #rankings-panel {
-    left: 10px;
-    bottom: 10px;
-    width: 144px;
-    padding: 10px 12px;
-  }
-
-  #rankings-panel h4 {
-    font-size: 16px;
-  }
-
-  #actions {
-    right: 10px;
-    bottom: 10px;
-    width: 208px;
-    padding: 10px;
-    gap: 8px;
-  }
-
-  #actions button {
-    min-height: 42px;
-    font-size: 14px;
-  }
-
-  #my-hand-wrap {
-    left: 150px;
-    right: 188px;
-    bottom: 10px;
-  }
-
-  .card {
-    width: 54px;
-    height: 80px;
-  }
-
-  .played-area .card {
-    width: 38px;
-    height: 56px;
-  }
-
-  .plabel.pos-1,
-  .plabel.pos-2 {
-    right: 8px;
-  }
-
-  .plabel.pos-4,
-  .plabel.pos-5 {
-    left: 8px;
-  }
+  .center-stage { top: 20%; width: 66vw; min-height: 126px; }
+  .event-burst { font-size: 30px; letter-spacing: 4px; }
+  .event-sub { top: calc(50% + 28px); font-size: 11px; }
+  #panel-top { left: 10px; right: 10px; top: 8px; min-height: 44px; padding: 8px 10px; }
+  #turn-timer { font-size: 14px; }
+  #panel-meta { max-width: 58%; font-size: 10px; }
+  #rankings-panel { left: 10px; bottom: 10px; width: 144px; padding: 10px 12px; }
+  #rankings-panel h4 { font-size: 16px; }
+  #actions { right: 10px; bottom: 10px; width: 208px; padding: 10px; gap: 8px; }
+  #actions button { min-height: 42px; font-size: 14px; }
+  #my-hand-wrap { left: 150px; right: 188px; bottom: 10px; }
+  .card { width: 54px; height: 80px; }
+  .played-area .card { width: 58px; height: 44px; }
+  .plabel.pos-1, .plabel.pos-2 { right: 8px; }
+  .plabel.pos-4, .plabel.pos-5 { left: 8px; }
 }
+
+</style>
+</head>
+<body>
+<div id="rotate-tip">建议横屏体验更舒服</div>
 
 <!-- ============ LOBBY ============ -->
 <div id="lobby">
@@ -2688,9 +2575,11 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
 <!-- Game over -->
 <div id="gameover">
-  <h2 id="go-title"></h2>
-  <div class="go-detail" id="go-detail"></div>
-  <button id="go-btn" onclick="doRestart()">再 来 一 局</button>
+  <div class="go-card">
+    <h2 id="go-title"></h2>
+    <div class="go-detail" id="go-detail"></div>
+    <button id="go-btn" onclick="doRestart()">再 来 一 局</button>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -2851,7 +2740,12 @@ function connect() {
 
   socket.on('back_to_lobby', (data) => {
     document.getElementById('gameover').classList.remove('show');
-  hidePeekOverlay();
+    const goBtn = document.getElementById('go-btn');
+    if (goBtn) {
+      goBtn.disabled = false;
+      goBtn.textContent = '再 来 一 局';
+    }
+    hidePeekOverlay();
     document.getElementById('game').style.display = 'none';
     document.getElementById('waiting').style.display = 'flex';
     hidePeekOverlay();
@@ -2925,7 +2819,16 @@ function doStart() {
 }
 
 function doRestart() {
-  if (isHost) socket.emit('restart_game');
+  const goBtn = document.getElementById('go-btn');
+  if (!isHost) {
+    toast('只有房主可以再来一局');
+    return;
+  }
+  if (goBtn) {
+    goBtn.disabled = true;
+    goBtn.textContent = '正 在 准 备';
+  }
+  socket.emit('restart_game');
 }
 
 // ============ WAITING ROOM ============
@@ -3065,6 +2968,11 @@ function showGame(state) {
   document.getElementById('waiting').style.display = 'none';
   document.getElementById('game').style.display = 'block';
   document.getElementById('gameover').classList.remove('show');
+  const goBtn = document.getElementById('go-btn');
+  if (goBtn) {
+    goBtn.disabled = false;
+    goBtn.textContent = '再 来 一 局';
+  }
 
   renderLabels(state);
   renderPlayedAreas(state);
@@ -3130,8 +3038,9 @@ function showGame(state) {
     panelMeta.textContent = parts.join('  |  ');
   }
 
-  const goBtn = document.getElementById('go-btn');
-  goBtn.style.display = isHost ? '' : 'none';
+  if (goBtn) {
+    goBtn.style.display = isHost ? '' : 'none';
+  }
 
   // Show tribute/buySan notification once per round
   if (state.roundNumber && state.roundNumber !== _lastShownRound) {
@@ -3747,8 +3656,11 @@ function showGameOver(data) {
   });
 
   document.getElementById('go-title').textContent = title;
-  document.getElementById('go-detail').textContent = detail;
-  document.getElementById('go-btn').style.display = isHost ? '' : 'none';
+  document.getElementById('go-detail').textContent = detail.trim();
+  const goBtn = document.getElementById('go-btn');
+  goBtn.disabled = false;
+  goBtn.textContent = '再 来 一 局';
+  goBtn.style.display = isHost ? '' : 'none';
   document.getElementById('gameover').classList.add('show');
 }
 
