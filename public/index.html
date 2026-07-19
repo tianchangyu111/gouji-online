@@ -10,12 +10,20 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 
 :root {
-  --felt: #1a5c2a;
-  --felt-dark: #0f3d1a;
-  --felt-light: #2a7a3a;
-  --gold: #d4a843;
-  --gold-light: #f0d080;
-  --red: #cc2222;
+  --felt: #145233;
+  --felt-dark: #071c11;
+  --felt-light: #1e7a49;
+  --gold: #dfb15c;
+  --gold-light: #ffdf9e;
+  --red: #d6493f;
+  --wood: #6e4326;
+  --wood-dark: #3a2414;
+  --team-a: #e2564e;
+  --team-a-light: #ff8f79;
+  --team-b: #4e8fe0;
+  --team-b-light: #7fc2ff;
+  --panel-bg: linear-gradient(to bottom, rgba(15,32,22,0.92), rgba(8,19,13,0.97));
+  --panel-border: rgba(223,177,92,0.22);
   --bottom-panel-h: 350px;
 }
 
@@ -323,26 +331,83 @@ body {
 /* Cards */
 .card {
   width: 68px; height: 98px;
-  background: #fff;
+  background: linear-gradient(160deg, #ffffff 0%, #f4f1e8 62%, #ece6d4 100%);
   border-radius: 9px;
-  border: 1px solid rgba(0,0,0,0.18);
+  border: 1px solid rgba(0,0,0,0.14);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   font-size: 16px; font-weight: 800;
   cursor: pointer;
   transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 5px 3px -2px rgba(0,0,0,0.12), 0 6px 14px rgba(0,0,0,0.32);
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
 }
 
 .card.red { color: var(--red); }
-.card.black { color: #222; }
+.card.black { color: #1a1a1a; }
 .card.joker-big,
 .card.joker-small { color: #fff; border-color: rgba(255,255,255,0.25); }
-.card .rank { font-size: 16px; line-height: 1; z-index: 2; }
-.card .suit { font-size: 20px; line-height: 1; z-index: 2; margin-top: 4px; }
+.card .rank {
+  font-size: 22px;
+  line-height: 1;
+  z-index: 2;
+  font-weight: 900;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+}
+.card .suit {
+  font-size: 17px;
+  line-height: 1;
+  z-index: 2;
+  margin-top: 3px;
+  opacity: 0.92;
+}
+
+/* Big soft suit glyph behind the rank — gives the face some depth instead
+   of two flat lines of text floating in the middle of a blank card. */
+.card .pip {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3.1em;
+  line-height: 1;
+  opacity: 0.10;
+  pointer-events: none;
+}
+.card.red .pip { color: var(--red); }
+.card.black .pip { color: #1a1a1a; }
+
+/* The local "2" outranks every normal card in 够级, so give it a quiet
+   gold tell instead of looking identical to a plain number card. */
+.card.power-two {
+  border-color: rgba(223,177,92,0.55);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 0 0 1px rgba(223,177,92,0.5), 0 6px 14px rgba(0,0,0,0.32);
+}
+.card.power-two .pip { color: var(--gold); opacity: 0.22; }
+
+/* Corner index — small rank+suit in opposite corners, like a real playing card */
+.card .idx {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.card .idx b { font-size: 11px; font-weight: 800; }
+.card .idx-tl { top: 5px; left: 5px; }
+.card .idx-br { bottom: 5px; right: 5px; transform: rotate(180deg); }
+.played-area .card .idx,
+.played-area .card .pip,
+#strategist-panel .card .idx,
+#strategist-panel .card .pip,
+.peek-cards .card .idx,
+.peek-cards .card .pip { display: none; }
 .card .joker-face {
   position: absolute; inset: 0;
   background-size: cover;
@@ -375,7 +440,7 @@ body {
 
 .card.selected {
   transform: translateY(-12px);
-  box-shadow: 0 8px 18px rgba(212,168,67,0.45);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 0 0 2px var(--gold), 0 10px 20px rgba(223,177,92,0.4);
   border-color: var(--gold);
 }
 
@@ -529,28 +594,36 @@ body {
   border-radius: 11px;
   cursor: pointer;
   letter-spacing: 3px;
-  border: 2px solid var(--gold);
-  transition: all 0.2s;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 3px 8px rgba(0,0,0,0.28);
+  transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
+}
+#actions button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset, 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .btn-go {
-  background: linear-gradient(to bottom, #d4a843, #b8922a);
-  color: #1a1a1a;
+  background: linear-gradient(to bottom, var(--gold-light), var(--gold) 55%, #b8873a);
+  color: #241a08;
+  border-color: rgba(255,236,190,0.6);
 }
 .btn-no {
-  background: rgba(0,0,0,0.42);
-  color: var(--gold);
+  background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(0,0,0,0.28));
+  color: var(--gold-light);
+  border-color: var(--panel-border);
 }
 .btn-special {
-  background: rgba(20,20,20,0.76);
+  background: linear-gradient(to bottom, rgba(78,143,224,0.22), rgba(10,16,12,0.82));
   color: #f0d080;
+  border-color: rgba(223,177,92,0.3);
 }
 .btn-alert {
-  background: linear-gradient(to bottom, #f06d4b, #bf4022);
+  background: linear-gradient(to bottom, #ff9268, #d6493f 60%, #a02b26);
   color: #fff7e8;
-  border-color: #ffb28d !important;
+  border-color: #ffcbb0 !important;
 }
-button:disabled { opacity: 0.3; cursor: default !important; }
+button:disabled { opacity: 0.35; filter: grayscale(0.3); cursor: default !important; box-shadow: none !important; }
 
 #my-hand-wrap {
   width: 100%;
@@ -2017,8 +2090,13 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 /* ============ POLISHED TABLE REDESIGN ============ */
 #game {
   background:
-    radial-gradient(circle at 50% 40%, rgba(255,226,138,0.08), transparent 26%),
-    radial-gradient(circle at 50% 38%, #2b8444 0%, #17562c 42%, #0b3018 78%, #06160d 100%);
+    radial-gradient(circle at 50% 34%, rgba(255,226,138,0.12), transparent 30%),
+    radial-gradient(circle at 50% 38%, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 84%, #030d07 100%);
+  /* wood bezel + thin gold trim line framing the felt, like a real table rim */
+  box-shadow:
+    inset 0 0 0 14px var(--wood-dark),
+    inset 0 0 0 18px var(--gold),
+    inset 0 0 0 19px var(--wood);
 }
 
 #game::after {
@@ -2027,8 +2105,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   left: 0;
   right: 0;
   bottom: 0;
-  height: 14vh;
-  background: linear-gradient(to top, rgba(52,27,13,0.95), rgba(80,48,26,0.58) 42%, rgba(80,48,26,0) 100%);
+  height: 16vh;
+  background: linear-gradient(to top, rgba(58,36,20,0.92), rgba(90,56,30,0.5) 45%, rgba(90,56,30,0) 100%);
   pointer-events: none;
   z-index: 1;
 }
@@ -2060,28 +2138,38 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  border: 3px solid rgba(255,255,255,0.18);
-  box-shadow: 0 8px 18px rgba(0,0,0,0.26);
+  border: 3px solid rgba(255,255,255,0.5);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 18px rgba(0,0,0,0.32);
   flex-shrink: 0;
-  background:
-    radial-gradient(circle at 35% 32%, rgba(255,255,255,0.26), transparent 34%),
-    radial-gradient(circle at 50% 50%, rgba(255,225,160,0.24), transparent 60%),
-    linear-gradient(145deg, rgba(34,49,38,0.98), rgba(8,18,13,0.96));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 24px;
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.35);
   position: relative;
   overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
 }
 
 .plabel .seat-avatar::after {
+  /* soft highlight sheen, sits above the flat gradient for a glossier feel */
   content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  transform: translate(-50%, -62%);
-  background: rgba(255,255,255,0.16);
-  box-shadow: 0 19px 0 7px rgba(255,255,255,0.12);
+  inset: 0;
+  background: radial-gradient(circle at 32% 24%, rgba(255,255,255,0.42), transparent 46%);
+  pointer-events: none;
+}
+
+.plabel .seat-avatar.is-turn {
+  border-color: var(--gold-light);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 0 0 3px rgba(223,177,92,0.35), 0 0 18px 3px rgba(223,177,92,0.55);
+  transform: scale(1.06);
+}
+
+.plabel .seat-avatar.is-done {
+  filter: grayscale(0.6) brightness(0.72);
 }
 
 .plabel .seat-body {
@@ -2152,12 +2240,24 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   font-size: 12px;
 }
 
+/* --actions-w / --rankings-w feed both the panel widths below AND the
+   hand-tray's left/right offsets, so the hand tray can never slide under
+   them. --panel-clear is derived from the same capped panel height, so
+   the "near" seats (pos-1/pos-5) and their played cards never render
+   behind the action/ranking panels either (this was happening before:
+   two of six players were fully hidden at normal desktop widths). */
+#game {
+  --actions-w: clamp(248px, 28vw, 344px);
+  --rankings-w: clamp(176px, 19vw, 230px);
+  --panel-clear: calc(44vh + 76px);
+}
+
 .plabel.pos-0 { bottom: 150px; left: 50%; transform: translateX(-50%); }
-.plabel.pos-1 { bottom: 27%; right: 26px; align-items: flex-end; }
+.plabel.pos-1 { bottom: var(--panel-clear); right: 26px; align-items: flex-end; }
 .plabel.pos-2 { top: 13%; right: 26px; align-items: flex-end; }
 .plabel.pos-3 { top: 18px; left: 50%; transform: translateX(-50%); }
 .plabel.pos-4 { top: 13%; left: 26px; align-items: flex-start; }
-.plabel.pos-5 { bottom: 27%; left: 26px; align-items: flex-start; }
+.plabel.pos-5 { bottom: var(--panel-clear); left: 26px; align-items: flex-start; }
 
 #played-areas { z-index: 4; }
 
@@ -2197,6 +2297,18 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   transform: none;
 }
 
+/* Idle state: no player has just played a strong hand — show a faint
+   watermark instead of a permanently-visible empty bordered box. */
+.center-stage.idle {
+  min-height: 0;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+.center-stage.idle::before,
+.center-stage.idle::after { display: none; }
+
 .event-burst {
   position: absolute;
   left: 50%;
@@ -2213,6 +2325,18 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 .event-burst.gold {
   color: var(--gold-light);
   text-shadow: 0 0 22px rgba(240,208,128,0.22);
+}
+
+.event-burst.idle {
+  position: static;
+  transform: none;
+  display: block;
+  text-align: center;
+  font-family: 'Ma Shan Zheng', cursive;
+  font-size: 16px;
+  letter-spacing: 14px;
+  color: rgba(255,240,210,0.14);
+  text-shadow: none;
 }
 
 .event-sub {
@@ -2278,20 +2402,22 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 }
 
 .played-area.ppos-0 { bottom: 180px; left: 50%; transform: translateX(-50%); }
-.played-area.ppos-1 { bottom: 31%; right: 10%; justify-content: flex-end; }
+.played-area.ppos-1 { bottom: var(--panel-clear); right: 10%; justify-content: flex-end; }
 .played-area.ppos-2 { top: 21%; right: 10%; justify-content: flex-end; }
 .played-area.ppos-3 { top: 14%; left: 50%; transform: translateX(-50%); }
 .played-area.ppos-4 { top: 21%; left: 10%; justify-content: flex-start; }
-.played-area.ppos-5 { bottom: 31%; left: 10%; justify-content: flex-start; }
+.played-area.ppos-5 { bottom: var(--panel-clear); left: 10%; justify-content: flex-start; }
 
 #rankings-panel {
   bottom: 26px;
   left: 18px;
-  width: clamp(176px, 19vw, 230px);
+  width: var(--rankings-w);
+  max-height: 44vh;
+  overflow-y: auto;
   padding: 16px 18px;
   border-radius: 22px;
-  background: linear-gradient(to bottom, rgba(7,16,11,0.90), rgba(5,13,9,0.96));
-  border-color: rgba(242,209,134,0.12);
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
 }
 
 #rankings-panel h4 {
@@ -2314,8 +2440,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
   right: 18px;
   min-height: 54px;
   border-radius: 20px;
-  background: rgba(5,12,9,0.76);
-  border-color: rgba(242,209,134,0.12);
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
   box-shadow: 0 14px 30px rgba(0,0,0,0.24);
 }
 
@@ -2329,11 +2455,13 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 #actions {
   right: 18px;
   bottom: 26px;
-  width: clamp(248px, 28vw, 344px);
+  width: var(--actions-w);
+  max-height: 44vh;
+  overflow-y: auto;
   padding: 16px;
   border-radius: 22px;
-  background: linear-gradient(to bottom, rgba(7,16,11,0.90), rgba(5,13,9,0.96));
-  border-color: rgba(242,209,134,0.12);
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
 }
 
 #actions button {
@@ -2345,13 +2473,13 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 }
 
 #my-hand-wrap {
-  left: clamp(210px, 23vw, 284px);
-  right: clamp(262px, 28vw, 372px);
+  left: calc(18px + var(--rankings-w) + 20px);
+  right: calc(18px + var(--actions-w) + 20px);
   bottom: 20px;
   padding: 18px 16px 28px;
   border-radius: 24px;
-  background: linear-gradient(to bottom, rgba(7,16,11,0.88), rgba(5,13,9,0.96));
-  border-color: rgba(242,209,134,0.12);
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
   box-shadow: 0 16px 34px rgba(0,0,0,0.24);
 }
 
@@ -2362,39 +2490,251 @@ button:disabled { opacity: 0.3; cursor: default !important; }
 
 .card-group { min-height: 150px; }
 .card { width: 74px; height: 108px; border-radius: 12px; }
-.card .rank { font-size: 20px; }
-.card .suit { font-size: 22px; }
+.card .rank { font-size: 28px; }
+.card .suit { font-size: 20px; }
+.card .pip { font-size: 3.4em; }
+.card .idx { font-size: 11px; }
+.card .idx b { font-size: 12px; }
+.card .idx-tl { top: 7px; left: 7px; }
+.card .idx-br { bottom: 7px; right: 7px; }
 .group-count { min-width: 52px; min-height: 32px; font-size: 18px; bottom: -13px; }
 
 @media (max-width: 980px) {
+  #game {
+    --actions-w: clamp(214px, 26vw, 254px);
+    --rankings-w: 156px;
+    --panel-clear: calc(40vh + 60px);
+  }
   .center-stage { width: min(60vw, 520px); min-height: 148px; top: 23%; }
   #panel-meta { max-width: 60%; font-size: 11px; }
-  #rankings-panel { width: 156px; padding: 12px 14px; }
-  #actions { width: clamp(214px, 26vw, 254px); padding: 12px; }
+  #rankings-panel { width: var(--rankings-w); max-height: 40vh; padding: 12px 14px; }
+  #actions { width: var(--actions-w); max-height: 40vh; padding: 12px; }
   #actions button { min-height: 46px; font-size: 15px; }
-  #my-hand-wrap { left: 168px; right: 220px; padding: 12px 10px 22px; }
+  #my-hand-wrap { left: calc(18px + var(--rankings-w) + 16px); right: calc(18px + var(--actions-w) + 16px); padding: 12px 10px 22px; }
   .card { width: 60px; height: 88px; }
   .played-area .card { width: 70px; height: 50px; }
-  .plabel .seat-avatar { width: 44px; height: 44px; }
+  .plabel .seat-avatar { width: 44px; height: 44px; font-size: 20px; }
   .plabel .name-tag { font-size: 15px; }
 }
 
 @media (max-width: 780px) {
+  #game {
+    --actions-w: 208px;
+    --rankings-w: 144px;
+    --panel-clear: calc(38vh + 54px);
+  }
   .center-stage { top: 20%; width: 66vw; min-height: 126px; }
   .event-burst { font-size: 30px; letter-spacing: 4px; }
   .event-sub { top: calc(50% + 28px); font-size: 11px; }
   #panel-top { left: 10px; right: 10px; top: 8px; min-height: 44px; padding: 8px 10px; }
   #turn-timer { font-size: 14px; }
   #panel-meta { max-width: 58%; font-size: 10px; }
-  #rankings-panel { left: 10px; bottom: 10px; width: 144px; padding: 10px 12px; }
+  #rankings-panel { left: 10px; bottom: 10px; width: var(--rankings-w); max-height: 38vh; padding: 10px 12px; }
   #rankings-panel h4 { font-size: 16px; }
-  #actions { right: 10px; bottom: 10px; width: 208px; padding: 10px; gap: 8px; }
+  #actions { right: 10px; bottom: 10px; width: var(--actions-w); max-height: 38vh; padding: 10px; gap: 8px; }
   #actions button { min-height: 42px; font-size: 14px; }
-  #my-hand-wrap { left: 150px; right: 188px; bottom: 10px; }
+  #my-hand-wrap { left: calc(10px + var(--rankings-w) + 14px); right: calc(10px + var(--actions-w) + 14px); bottom: 10px; }
   .card { width: 54px; height: 80px; }
   .played-area .card { width: 58px; height: 44px; }
   .plabel.pos-1, .plabel.pos-2 { right: 8px; }
   .plabel.pos-4, .plabel.pos-5 { left: 8px; }
+}
+
+/* ============================================================
+   FINAL MOBILE FIX — authoritative, placed last on purpose so it
+   wins the cascade over every earlier (and now stale) mobile rule
+   above. Fixes: fluid card sizing, played-card zone placement,
+   and a real stacked layout for portrait phones (previously the
+   hand tray could shrink to ~30px wide on narrow phones).
+   ============================================================ */
+
+/* ---- Any phone/small tablet, either orientation ---- */
+@media (max-width: 900px) {
+  .card {
+    width: clamp(38px, 11vw, 58px);
+    height: clamp(56px, 16vw, 84px);
+    border-radius: 8px;
+  }
+  .card .rank { font-size: clamp(13px, 3.6vw, 19px); }
+  .card .suit { font-size: clamp(11px, 2.8vw, 14px); margin-top: 2px; }
+  .card .joker-text { font-size: 8px; left: 3px; bottom: 3px; padding: 1px 4px; }
+
+  .card-group { min-height: clamp(70px, 20vw, 100px); }
+  .group-count { min-width: 32px; min-height: 22px; font-size: 12px; bottom: -9px; padding: 1px 8px; }
+
+  .played-area { gap: 3px; }
+  .played-area .played-stack { gap: 3px; }
+  .played-area .card {
+    width: clamp(30px, 9vw, 48px);
+    height: clamp(22px, 6.4vw, 34px);
+    border-radius: 6px;
+    padding: 0 4px;
+  }
+  .played-area .card .rank { font-size: clamp(9px, 2.6vw, 12px); }
+  .played-area .card .suit { font-size: clamp(10px, 2.8vw, 13px); }
+  .played-area .card .joker-text { font-size: 6px; left: 2px; bottom: 2px; }
+  .played-area .play-tag { min-height: 18px; padding: 1px 7px; font-size: 10px; }
+
+  .plabel .seat-avatar { width: clamp(26px, 8vw, 40px); height: clamp(26px, 8vw, 40px); border-width: 2px; font-size: clamp(13px, 4vw, 19px); }
+  .plabel .seat-shell { min-width: 0; gap: 6px; }
+  .plabel .seat-body { min-width: 0; padding: 5px 9px; border-radius: 12px; }
+  .plabel .name-tag { font-size: clamp(11px, 3.2vw, 15px); gap: 4px; }
+  .plabel .name-tag .role-tag { font-size: 9px; }
+  .plabel .card-info { font-size: 10px; }
+  .plabel .action-text, .plabel .finish-text { font-size: 10px; }
+  .plabel .seat-pill { font-size: 9px; min-height: 15px; padding: 0 5px; }
+
+  .event-burst { font-size: clamp(20px, 6vw, 32px); letter-spacing: 3px; }
+  .event-sub { font-size: 10px; top: calc(50% + 24px); }
+}
+
+/* ---- Portrait phones: switch to a stacked layout ---- */
+@media (max-width: 900px) and (orientation: portrait) {
+  #game {
+    --hand-bottom: calc(env(safe-area-inset-bottom) + 108px);
+    --hand-max-h: 32vh;
+    --near-row: calc(var(--hand-bottom) + var(--hand-max-h) + 8px);
+  }
+
+  #rotate-tip { display: block; }
+  #rankings-panel { display: none; }
+
+  /* Top status bar, pushed below the rotate-tip pill */
+  #panel-top {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 38px);
+    left: 8px;
+    right: 8px;
+    min-height: 0;
+    padding: 6px 10px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    border-radius: 12px;
+  }
+  #turn-timer { font-size: 12px; flex-shrink: 0; }
+  #panel-meta { max-width: none; flex: 1; text-align: right; font-size: 10px; line-height: 1.35; }
+
+  /* My own label is redundant with the hand tray right below it */
+  .plabel.pos-0 { display: none; }
+
+  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 92px); }
+  .plabel.pos-2, .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 92px); }
+  .plabel.pos-1, .plabel.pos-2 { right: 4px; }
+  .plabel.pos-4, .plabel.pos-5 { left: 4px; }
+  .plabel.pos-1, .plabel.pos-5 { bottom: var(--near-row); }
+
+  .played-area.ppos-0, .played-area.ppos-3 { max-width: 58vw; }
+  .played-area.ppos-1, .played-area.ppos-2,
+  .played-area.ppos-4, .played-area.ppos-5 { max-width: 38vw; }
+
+  .played-area.ppos-0 { bottom: var(--near-row); }
+  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 158px); }
+  .played-area.ppos-2, .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 172px); }
+  .played-area.ppos-1, .played-area.ppos-2 { right: 4%; }
+  .played-area.ppos-4, .played-area.ppos-5 { left: 4%; }
+  .played-area.ppos-1, .played-area.ppos-5 { bottom: var(--near-row); }
+
+  .center-stage {
+    top: 30%;
+    width: 68vw;
+    min-height: 70px;
+  }
+  .event-sub { top: calc(50% + 20px); }
+
+  /* Bottom action grid, full width */
+  #actions {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: calc(env(safe-area-inset-bottom) + 6px);
+    width: auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+  #actions button {
+    min-width: 0;
+    flex: none;
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 4px;
+    font-size: 12px;
+    letter-spacing: 0;
+    border-radius: 9px;
+  }
+
+  /* Hand tray: full width row that scrolls vertically if needed */
+  #my-hand-wrap {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: auto;
+    bottom: var(--hand-bottom);
+    max-height: var(--hand-max-h);
+    padding: 8px 6px 12px;
+    border-radius: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  #my-hand {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 8px 6px;
+    min-height: 0;
+    padding: 2px;
+  }
+}
+
+/* ---- Short landscape phones (rotated) ---- */
+@media (orientation: landscape) and (max-height: 480px) {
+  #rankings-panel { display: none; }
+
+  #panel-top { top: 6px; left: 8px; right: 8px; padding: 6px 10px; }
+  #turn-timer { font-size: 12px; }
+  #panel-meta { font-size: 10px; max-width: 58%; }
+
+  #actions {
+    right: 8px;
+    bottom: 6px;
+    width: clamp(170px, 24vw, 210px);
+    padding: 8px;
+    gap: 6px;
+  }
+  #actions button {
+    min-width: calc(50% - 4px);
+    flex-basis: calc(50% - 4px);
+    min-height: 30px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  #my-hand-wrap {
+    left: clamp(120px, 16vw, 160px);
+    right: clamp(180px, 26vw, 220px);
+    bottom: 6px;
+    max-height: none;
+    padding: 6px 8px 12px;
+  }
+  #my-hand { flex-wrap: nowrap; min-height: 0; }
+
+  .card { width: clamp(40px, 9vh, 56px); height: clamp(58px, 13vh, 80px); }
+  .played-area .card { width: clamp(34px, 7vh, 46px); height: clamp(24px, 5vh, 34px); }
+
+  .plabel.pos-0 { bottom: 76px; }
+  .plabel.pos-1, .plabel.pos-5 { bottom: 26%; }
+  .plabel.pos-2, .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 44px); }
+  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 4px); }
+
+  .played-area.ppos-0 { bottom: 92px; }
+  .played-area.ppos-1, .played-area.ppos-5 { bottom: 22%; }
+  .played-area.ppos-2, .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 68px); }
+  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 28px); }
 }
 
 </style>
@@ -2534,6 +2874,8 @@ button:disabled { opacity: 0.3; cursor: default !important; }
       <button class="btn-special" id="btn-jiang-throw" onclick="doJiangThrow()" style="display:none" disabled>扔 牌</button>
       <button class="btn-special" id="btn-peek" onclick="doPeek()" style="display:none" disabled>验 牌</button>
       <button class="btn-special" id="btn-strategist" onclick="doStrategist()" style="display:none" disabled>军 师</button>
+      <button class="btn-alert" id="btn-force-skip" onclick="doForceSkip()" style="display:none" disabled>点 名</button>
+      <button class="btn-alert" id="btn-alpha-strike" onclick="doAlphaStrike()" style="display:none" disabled>突 袭</button>
       <button class="btn-no" id="btn-clear" onclick="clearSelection()">清 空</button>
     </div>
 
@@ -2906,8 +3248,8 @@ function startDemoGame() {
     myHand: [
       makeDemoCard('h1', 16, 0),
       makeDemoCard('h2', 17, 0),
-      makeDemoCard('h3', 2, 0),
-      makeDemoCard('h4', 2, 1),
+      makeDemoCard('h3', 15, 0),
+      makeDemoCard('h4', 15, 1),
       makeDemoCard('h5', 14, 0),
       makeDemoCard('h6', 14, 1),
       makeDemoCard('h7', 13, 0),
@@ -3010,6 +3352,8 @@ function showGame(state) {
   toggleBtn('btn-jiang-throw', !isReturnPhase && !isBuyFourPhase && (state.jiangThrowMax?.[state.mySeat] || 0) > 0, !state.canJiangThrow || state.finished[state.mySeat]);
   toggleBtn('btn-peek', !isBuyFourPhase && (state.peekMax?.[state.mySeat] || 0) > 0, !state.canPeek || state.finished[state.mySeat]);
   toggleBtn('btn-strategist', state.canStrategist, !state.canStrategist);
+  toggleBtn('btn-force-skip', !state.forceSkipUsed && (state.myName || '').trim() === '魏不凡', !state.canForceSkip);
+  toggleBtn('btn-alpha-strike', (state.myName || '').trim() === '王晓' && !state.finished[state.mySeat], !state.canAlphaStrike);
   document.getElementById('btn-clear').disabled = !hasSelection;
   if (!state.canStrategist) hideStrategistPanel();
   renderTimer(state);
@@ -3035,6 +3379,14 @@ function showGame(state) {
     if (state.canLet) parts.push('可让牌');
     if (state.isChaosPhase) parts.push('四人乱缠');
     if (state.noHeadSeat >= 0) parts.push(`无头 ${getPlayerName(state, state.noHeadSeat)}`);
+    if (state.myEquipment) {
+      const eq = state.myEquipment;
+      parts.push(`🎒 ${eq.name}${eq.used ? '（已用）' : ''}：${eq.desc}`);
+    }
+    if (state.poolStats) {
+      const ps = state.poolStats;
+      parts.push(`赛博对账：大王${ps.bigJokers} 小王${ps.smallJokers} 2${ps.twos}`);
+    }
     panelMeta.textContent = parts.join('  |  ');
   }
 
@@ -3113,12 +3465,16 @@ function renderLabels(state) {
     if ((state.burnTributeDebt?.[abs] ?? 0) > 0) pills.push(`<span class="seat-pill">烧${state.burnTributeDebt[abs]}</span>`);
     if ((state.menTributeDebt?.[abs] ?? 0) > 0) pills.push(`<span class="seat-pill">闷${state.menTributeDebt[abs]}</span>`);
 
+    const teamMain = isTeamA ? 'var(--team-a)' : 'var(--team-b)';
+    const teamLight = isTeamA ? 'var(--team-a-light)' : 'var(--team-b-light)';
+    const initial = (name || '?').trim().slice(0, 1) || '?';
+
     html += `<div class="plabel pos-${rel}">
       <div class="seat-shell">
-        <div class="seat-avatar" style="border-color:${isTeamA ? '#cc4444' : '#3377cc'}"></div>
+        <div class="seat-avatar ${isTurn ? 'is-turn' : ''} ${state.finished[abs] ? 'is-done' : ''}" style="border-color:${teamMain};background:radial-gradient(circle at 32% 26%, ${teamLight}, ${teamMain} 72%)">${initial}</div>
         <div class="seat-body ${isTurn ? 'is-turn' : ''}">
           <div class="name-tag">
-            <span class="team-indicator" style="background:${isTeamA ? '#cc4444' : '#3377cc'}"></span>
+            <span class="team-indicator" style="background:${teamMain}"></span>
             ${name}
             ${extra ? `<span class="role-tag">${extra}</span>` : ''}
           </div>
@@ -3135,9 +3491,9 @@ function renderLabels(state) {
 function renderPlayedAreas(state) {
   const container = document.getElementById('played-areas');
   const stage = getStageEventClient(state);
-  let html = `<div class="center-stage">
+  let html = `<div class="center-stage ${stage.kind}">
     <div class="event-burst ${stage.kind}">${stage.label}</div>
-    <div class="event-sub">${stage.sub}</div>
+    ${stage.sub ? `<div class="event-sub">${stage.sub}</div>` : ''}
   </div>`;
   for (let abs = 0; abs < 6; abs++) {
     const rel = getRelativeSeat(abs, state.mySeat);
@@ -3302,29 +3658,46 @@ function renderRankings(state) {
 }
 
 // ============ CARD HELPERS ============
+function cornerIndexHTML(card) {
+  const idx = `<b>${RANK_NAMES[card.rank]}</b>${SUIT_SYMBOLS[card.suit]}`;
+  return `<span class="idx idx-tl">${idx}</span><span class="idx idx-br">${idx}</span>`;
+}
+
+function jokerIndexHTML(label) {
+  return `<span class="idx idx-tl"><b>${label}</b></span><span class="idx idx-br"><b>${label}</b></span>`;
+}
+
 function createCardEl(card) {
   const el = document.createElement('div');
   el.className = 'card';
   if (card.rank === 17) {
     el.classList.add('joker-big');
-    el.innerHTML = '<div class="joker-face big"></div><span class="joker-text">大王</span>';
+    el.innerHTML = `${jokerIndexHTML('大')}<div class="joker-face big"></div><span class="joker-text">大王</span>`;
   } else if (card.rank === 16) {
     el.classList.add('joker-small');
-    el.innerHTML = '<div class="joker-face small"></div><span class="joker-text">小王</span>';
+    el.innerHTML = `${jokerIndexHTML('小')}<div class="joker-face small"></div><span class="joker-text">小王</span>`;
   } else {
     el.classList.add(SUIT_COLORS[card.suit]);
-    el.innerHTML = `<span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`;
+    if (card.rank === 15) el.classList.add('power-two');
+    el.setAttribute('data-suit', SUIT_SYMBOLS[card.suit]);
+    el.innerHTML = `${cornerIndexHTML(card)}<span class="pip">${SUIT_SYMBOLS[card.suit]}</span><span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`;
   }
   return el;
 }
 
 function cardHTML(card, mini) {
   let cls = 'card';
+  let attrs = '';
   let inner = '';
-  if (card.rank === 17) { cls += ' joker-big'; inner = '<div class="joker-face big"></div><span class="joker-text">大王</span>'; }
-  else if (card.rank === 16) { cls += ' joker-small'; inner = '<div class="joker-face small"></div><span class="joker-text">小王</span>'; }
-  else { cls += ' ' + SUIT_COLORS[card.suit]; inner = `<span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`; }
-  return `<div class="${cls}">${inner}</div>`;
+  if (card.rank === 17) { cls += ' joker-big'; inner = `${jokerIndexHTML('大')}<div class="joker-face big"></div><span class="joker-text">大王</span>`; }
+  else if (card.rank === 16) { cls += ' joker-small'; inner = `${jokerIndexHTML('小')}<div class="joker-face small"></div><span class="joker-text">小王</span>`; }
+  else {
+    cls += ' ' + SUIT_COLORS[card.suit];
+    if (card.rank === 15) cls += ' power-two';
+    attrs = ` data-suit="${SUIT_SYMBOLS[card.suit]}"`;
+    inner = `${cornerIndexHTML(card)}<span class="pip">${SUIT_SYMBOLS[card.suit]}</span><span class="rank">${RANK_NAMES[card.rank]}</span><span class="suit">${SUIT_SYMBOLS[card.suit]}</span>`;
+  }
+  return `<div class="${cls}"${attrs}>${inner}</div>`;
 }
 
 function isGoujiPlayClient(cards) {
@@ -3358,7 +3731,7 @@ function getStageEventClient(state) {
       kind: state.activeBurns?.[state.currentPlayer] ? 'burn' : 'gold'
     };
   }
-  return { label: '牌桌中央', sub: '当前等待新的强事件触发', kind: 'gold' };
+  return { label: '够 级', sub: '', kind: 'idle' };
 }
 
 // ============ INTERACTIONS ============
@@ -3623,6 +3996,14 @@ function doStrategist() {
   socket.emit('strategist_view_teammates');
 }
 
+function doForceSkip() {
+  socket.emit('force_skip');
+}
+
+function doAlphaStrike() {
+  socket.emit('alpha_strike');
+}
+
 // ============ GAME OVER ============
 function showGameOver(data) {
   const { rankings, players } = data;
@@ -3682,9 +4063,13 @@ function showPeekOverlay(data) {
 
   const note = document.getElementById('peek-note');
   if (note) {
-    const uses = data.uses ?? 0;
-    const max = data.max ?? 3;
-    note.textContent = `3秒可见｜验牌 ${uses}/${max}`;
+    if (data.noteOverride) {
+      note.textContent = data.noteOverride;
+    } else {
+      const uses = data.uses ?? 0;
+      const max = data.max ?? 3;
+      note.textContent = `3秒可见｜验牌 ${uses}/${max}`;
+    }
   }
 
   overlay.classList.add('show');

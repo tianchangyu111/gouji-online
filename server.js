@@ -85,11 +85,75 @@ function createRoom(hostSocketId, hostName) {
     returnTimer: null,
     botTimer: null,
     botMode: false,
+    playerEquipment: [null, null, null, null, null, null],
+    weiBufanSkipUsed: false,
   };
   return code;
 }
 
 const BOT_NAMES = ['阿海机', '小陈机', '老张机', '阿勇机', '小梁机', '阿哲机'];
+
+// ============ CONSOLATION EQUIPMENT ============
+// Whoever finishes last (大落) each round gets handed one random equipment
+// card to use the following round — a comeback nudge for the friend who
+// keeps getting stuck at the bottom. Every effect here is either a plain
+// number bonus, a display-only field, or a one-time relaxation of a legality
+// check — none of them touch currentPlayer / turn scheduling, on purpose,
+// so this can't reopen the stuck-turn bugs that were just fixed.
+const EQUIPMENT_DEFS = [
+  { id: 'yanpai', name: '我要验牌', desc: '下一局白送 1 次验牌机会（不用是张哲也能用）' },
+  { id: 'banwei', name: '班味', desc: '下一局你的出牌倒计时永久 +5 秒' },
+  { id: 'aini_laoji', name: '爱你老己', desc: '下一局第一次孬急必定摸到对方点数最大的牌' },
+  { id: 'jing_ziji', name: '敬自己一杯', desc: '下一局开局清空你的点贡/烧贡/闷贡欠账' },
+  { id: 'saibo_duizhang', name: '赛博对账', desc: '下一局随时能看到大王/小王/2 已经出过几张' },
+  { id: 'ruhe_ne', name: '如何呢又能怎', desc: '下一局手里的"3"随时能当废牌扔，不用等最后一手' },
+  { id: 'bu_jichu', name: '万物皆可不基础', desc: '下一局你的够级门槛少算一张牌' },
+  { id: 'zishujing', name: '紫薯精附体', desc: '下一局你抓/孬急/验牌/扔牌得手时会弹紫薯精特效' },
+  { id: 'baba_yulu', name: '可灵AI·霸总语录', desc: '下一局你打出够级时会飘一句中二霸总台词' },
+  { id: 'yuzhi_hu', name: '预制护体', desc: '下一局第一次被抓中要赔牌时，直接免赔一次' },
+];
+
+const BABA_LINES = [
+  '你的牌，从见到我那一刻就注定要输。',
+  '这局，我早就安排好了。',
+  '不用谢我，谁让我们是队友呢。',
+  '够级这种小场面，我闭着眼都能赢。',
+  '你已经在我的掌控之中了。',
+];
+
+function pickRandomEquipment() {
+  return EQUIPMENT_DEFS[Math.floor(Math.random() * EQUIPMENT_DEFS.length)];
+}
+
+function getSeatEquipment(room, seat) {
+  if (!room || seat < 0) return null;
+  return room.playerEquipment?.[seat] || null;
+}
+
+function hasEquip(room, seat, id) {
+  const item = getSeatEquipment(room, seat);
+  return !!item && item.id === id && !item.used;
+}
+
+function markEquipUsed(room, seat) {
+  const item = getSeatEquipment(room, seat);
+  if (item) item.used = true;
+}
+
+function grantConsolationEquipment(room) {
+  room.playerEquipment = room.playerEquipment || [null, null, null, null, null, null];
+  const rankings = room.game?.rankings || [];
+  const loser = rankings.length === 6 ? rankings[5] : -1;
+  for (let s = 0; s < 6; s++) {
+    if (s !== loser) room.playerEquipment[s] = null;
+  }
+  if (loser >= 0 && loser <= 5) {
+    const item = pickRandomEquipment();
+    room.playerEquipment[loser] = { ...item, used: false };
+    return { seat: loser, item };
+  }
+  return null;
+}
 
 function fillBotsForRoom(room) {
   if (!room) return;
@@ -181,7 +245,12 @@ function getNaojiLimit(name) {
 
 
 function getLuckyBoostSeat(players = []) {
-  const me = players.find(p => (p?.name || '').trim() === '梁金');
+  const me = players.find(p => ['梁金', '李昊'].includes((p?.name || '').trim()));
+  return me ? me.seat : -1;
+}
+
+function getLaotianSeat(players = []) {
+  const me = players.find(p => (p?.name || '').trim() === '老田');
   return me ? me.seat : -1;
 }
 
@@ -191,6 +260,13 @@ function getTeamSeats(seat) {
 
 function getRemainingTeammateSeats(game, seat) {
   return getTeamSeats(seat).filter(s => s !== seat && !game.finished[s]);
+}
+
+// 老田金钟罩: invisible to 军师, even though the team-slot logic otherwise
+// treats him like any other remaining teammate.
+function getVisibleTeammateSeats(room, game, seat) {
+  return getRemainingTeammateSeats(game, seat)
+    .filter(s => (room.players.find(p => p.seat === s)?.name || '').trim() !== '老田');
 }
 
 function pruneGrabClicks(game, now = Date.now()) {
@@ -229,36 +305,71 @@ function removeOneCardById(cards, id) {
   return { removed, kept };
 }
 
+const HONEST_TEAMMATE_NAMES = ['刘灿强', '大成'];
+
+// 老好人: if the seat about to pay a penalty has an active teammate named
+// 刘灿强 or 大成, they step in and pay instead — with any card of theirs
+// (not limited to 2-or-above), since they're just being nice, not following
+// the strict rule.
+function findHonestTeammate(room, seat) {
+  const game = room.game;
+  if (!game) return -1;
+  // 老田金钟罩: even a teammate's good intentions bounce off — he pays himself.
+  if ((room.players.find(p => p.seat === seat)?.name || '').trim() === '老田') return -1;
+  const teammates = getTeamSeats(seat).filter(s => s !== seat && !game.finished[s]);
+  for (const s of teammates) {
+    const name = (room.players.find(p => p.seat === s)?.name || '').trim();
+    if (HONEST_TEAMMATE_NAMES.includes(name) && (game.hands[s]?.length || 0) > 0) return s;
+  }
+  return -1;
+}
+
+function getAnyLowestCard(hand) {
+  return [...(hand || [])].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)[0] || null;
+}
+
 function applyNaojiPenalty(room, fromSeat, toSeat) {
   const game = room.game;
   if (!game || fromSeat === toSeat) return { ok: false, msg: '无效抓取' };
-  const pay = getPenaltyCardAboveTwo(game.hands[fromSeat]);
-  if (!pay) {
-    return { ok: false, msg: `${room.players.find(p => p.seat === fromSeat)?.name || ('座位' + (fromSeat+1))}没有2以上的牌可赔` };
+  if (hasEquip(room, fromSeat, 'yuzhi_hu')) {
+    markEquipUsed(room, fromSeat);
+    return { ok: true, shielded: true, card: null };
   }
-  game.hands[fromSeat] = removeSpecificCards(game.hands[fromSeat], [pay]);
+  const honestSeat = findHonestTeammate(room, fromSeat);
+  const payerSeat = honestSeat >= 0 ? honestSeat : fromSeat;
+  const pay = honestSeat >= 0 ? getAnyLowestCard(game.hands[payerSeat]) : getPenaltyCardAboveTwo(game.hands[payerSeat]);
+  if (!pay) {
+    return { ok: false, msg: `${room.players.find(p => p.seat === payerSeat)?.name || ('座位' + (payerSeat+1))}没有牌可赔` };
+  }
+  game.hands[payerSeat] = removeSpecificCards(game.hands[payerSeat], [pay]);
   pushCards(game.hands[toSeat], [pay]);
-  sortHand(game.hands[fromSeat]);
+  sortHand(game.hands[payerSeat]);
   sortHand(game.hands[toSeat]);
-  maybeFinishPlayer(game, fromSeat, room);
+  maybeFinishPlayer(game, payerSeat, room);
   stabilizeCurrentPlayer(game);
-  return { ok: true, card: pay };
+  return { ok: true, card: pay, honestPayer: honestSeat >= 0 ? honestSeat : null };
 }
 
 function applyJiangThrowPenalty(room, fromSeat, toSeat) {
   const game = room.game;
   if (!game || fromSeat === toSeat) return { ok: false, msg: '无效抓取' };
-  const pay = getPenaltyCardTwoFirst(game.hands[fromSeat]);
-  if (!pay) {
-    return { ok: false, msg: `${room.players.find(p => p.seat === fromSeat)?.name || ('座位' + (fromSeat+1))}没有2或王可赔` };
+  if (hasEquip(room, fromSeat, 'yuzhi_hu')) {
+    markEquipUsed(room, fromSeat);
+    return { ok: true, shielded: true, card: null };
   }
-  game.hands[fromSeat] = removeSpecificCards(game.hands[fromSeat], [pay]);
+  const honestSeat = findHonestTeammate(room, fromSeat);
+  const payerSeat = honestSeat >= 0 ? honestSeat : fromSeat;
+  const pay = honestSeat >= 0 ? getAnyLowestCard(game.hands[payerSeat]) : getPenaltyCardTwoFirst(game.hands[payerSeat]);
+  if (!pay) {
+    return { ok: false, msg: `${room.players.find(p => p.seat === payerSeat)?.name || ('座位' + (payerSeat+1))}没有牌可赔`, honestPayer: honestSeat >= 0 ? honestSeat : null };
+  }
+  game.hands[payerSeat] = removeSpecificCards(game.hands[payerSeat], [pay]);
   pushCards(game.hands[toSeat], [pay]);
-  sortHand(game.hands[fromSeat]);
+  sortHand(game.hands[payerSeat]);
   sortHand(game.hands[toSeat]);
-  maybeFinishPlayer(game, fromSeat, room);
+  maybeFinishPlayer(game, payerSeat, room);
   stabilizeCurrentPlayer(game);
-  return { ok: true, card: pay };
+  return { ok: true, card: pay, honestPayer: honestSeat >= 0 ? honestSeat : null };
 }
 
 function splitJiangThrowGroups(cards) {
@@ -499,8 +610,10 @@ function scheduleTurnTimer(room) {
   ensureTurnSeatValid(room);
   const game = room.game;
   if (game.currentPlayer < 0 || game.finished[game.currentPlayer]) return;
-  game.turnEndsAt = Date.now() + 20000;
-  room.turnTimer = setTimeout(() => handleTurnTimeout(room), 20050);
+  // 班味: this round the equipped seat gets +5s on every one of their turns.
+  const banweiBonus = hasEquip(room, game.currentPlayer, 'banwei') ? 5000 : 0;
+  game.turnEndsAt = Date.now() + 20000 + banweiBonus;
+  room.turnTimer = setTimeout(() => handleTurnTimeout(room), 20050 + banweiBonus);
 }
 
 function handleTurnTimeout(room) {
@@ -518,7 +631,27 @@ function handleTurnTimeout(room) {
   const playerName = room.players.find(p => p.seat === seat)?.name || ('座位' + (seat + 1));
   let result = null;
 
-  if (game.canKaiDian === seat || game.tablePlay) {
+  if (game.canKaiDian === seat) {
+    result = processPass(room, seat);
+    io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，自动过牌` });
+  } else if (game.activeBurns?.[seat]) {
+    // A burning player is not allowed to pass (processPass rejects it), so the
+    // old code (which routed any tablePlay-truthy timeout straight to
+    // processPass) would fail forever here and re-schedule the same 20s timer
+    // on every timeout — a permanent stuck turn if this player never acts.
+    // Mirror the bot's handling instead: auto-continue the burn if possible,
+    // otherwise fail the burn out so the game can move on.
+    const autoIds = chooseTimeoutLeadIds(game, seat);
+    if (autoIds.length > 0) {
+      result = processPlay(room, seat, autoIds);
+      io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，已自动续烧` });
+      io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat) });
+    } else {
+      maybeFailActiveBurnAtTurnStart(room, seat);
+      io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，烧牌失败` });
+      result = { ok: true };
+    }
+  } else if (game.tablePlay) {
     result = processPass(room, seat);
     io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，自动过牌` });
   } else {
@@ -553,7 +686,18 @@ function processNaoji(room, seat) {
   const candidates = buildNaojiCandidates(game, seat);
   if (!candidates.length) return { ok: false, msg: '没有可抽的牌' };
 
-  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  // 爱你老己: the first 孬急 this round always lands the single highest-rank
+  // candidate card instead of a random one. 老田金钟罩: his hand is never the
+  // guaranteed target — if only his cards qualify, fall back to random.
+  let pick;
+  if (hasEquip(room, seat, 'aini_laoji')) {
+    const eligible = candidates.filter(c => !(c.source === 'hand' && (room.players.find(p => p.seat === c.fromSeat)?.name || '').trim() === '老田'));
+    const pool = eligible.length ? eligible : candidates;
+    pick = pool.reduce((best, c) => (!best || c.card.rank > best.card.rank) ? c : best, null);
+    markEquipUsed(room, seat);
+  } else {
+    pick = candidates[Math.floor(Math.random() * candidates.length)];
+  }
   let got = null;
   let sourceName = '已出牌区';
 
@@ -639,7 +783,7 @@ function processPeek(room, seat) {
   if (!game || room.state !== 'playing') return { ok: false, msg: '游戏未开始' };
   if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段不能验牌' };
   const me = room.players.find(p => p.seat === seat);
-  if ((me?.name || '').trim() !== '张哲') return { ok: false, msg: '只有张哲可以使用验牌' };
+  if ((me?.name || '').trim() !== '张哲' && !hasEquip(room, seat, 'yanpai')) return { ok: false, msg: '只有张哲可以使用验牌' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完了，不能再验牌' };
   if (game.currentPlayer === seat) return { ok: false, msg: '自己的回合不能验牌' };
   if ((game.peekUses?.[seat] || 0) >= (game.peekMax?.[seat] || 0)) return { ok: false, msg: '验牌次数已用完' };
@@ -672,6 +816,26 @@ function processPeek(room, seat) {
 
   game.activeNaojiWindows.push(window);
 
+  // 老田金钟罩: 验牌看不到他的牌，反而他能偷看一眼张哲的牌。
+  const reflectedSeats = [];
+  const buildSide = (targetSeat, label) => {
+    const targetName = (room.players.find(p => p.seat === targetSeat)?.name || '').trim();
+    if (targetName === '老田') {
+      const laotianId = room.players.find(p => p.seat === targetSeat)?.id;
+      if (laotianId) {
+        io.to(laotianId).emit('peek_result', {
+          expiresAt: now + 3000,
+          displayMs: 3000,
+          noteOverride: `🛡️ 金钟罩反弹：偷看了 ${getSeatPlayerName(room, seat)} 的牌`,
+          sides: [{ seat, side: '反弹', name: getSeatPlayerName(room, seat), cards: game.hands[seat].map(cloneCard) }],
+        });
+      }
+      reflectedSeats.push(targetSeat);
+      return { seat: targetSeat, side: label, name: getSeatPlayerName(room, targetSeat), cards: [], blocked: true };
+    }
+    return { seat: targetSeat, side: label, name: getSeatPlayerName(room, targetSeat), cards: game.hands[targetSeat].map(cloneCard) };
+  };
+
   return {
     ok: true,
     penalties: penaltyLogs,
@@ -679,19 +843,10 @@ function processPeek(room, seat) {
     max: game.peekMax[seat],
     expiresAt: now + 3000,
     displayMs: 3000,
+    reflectedSeats,
     sides: [
-      {
-        seat: leftSeat,
-        side: '左侧',
-        name: getSeatPlayerName(room, leftSeat),
-        cards: game.hands[leftSeat].map(cloneCard),
-      },
-      {
-        seat: rightSeat,
-        side: '右侧',
-        name: getSeatPlayerName(room, rightSeat),
-        cards: game.hands[rightSeat].map(cloneCard),
-      },
+      buildSide(leftSeat, '左侧'),
+      buildSide(rightSeat, '右侧'),
     ],
   };
 }
@@ -761,7 +916,9 @@ function processStrategistView(room, seat) {
   const me = room.players.find(p => p.seat === seat);
   if ((me?.name || '').trim() !== '陈杰') return { ok: false, msg: '只有陈杰可以使用狗头军师' };
   if (!game.finished[seat]) return { ok: false, msg: '只有走了之后才能发动狗头军师' };
-  const mateSeats = getRemainingTeammateSeats(game, seat);
+  // 老田金钟罩: he's invisible to 军师 too. (No reversal here — 陈杰 is already
+  // out of cards at this point, so there's nothing meaningful to reflect.)
+  const mateSeats = getVisibleTeammateSeats(room, game, seat);
   if (!mateSeats.length) return { ok: false, msg: '当前没有剩余队友可查看' };
   return {
     ok: true,
@@ -775,12 +932,13 @@ function processStrategistView(room, seat) {
 
 // ============ DEAL ============
 
-function applyLuckyBuff(hands, luckySeat) {
-  if (luckySeat < 0 || !hands[luckySeat]) return;
+function applyLuckyBuff(hands, luckySeat, laotianSeat = -1) {
+  if (luckySeat < 0 || !hands[luckySeat]) return { reflected: false };
   const isHigh = c => c.rank >= 10;
   const rate = 0.10 + Math.random() * 0.05;
   const targetExtra = Math.max(1, Math.round(54 * rate));
-  const donorSeats = [0,1,2,3,4,5].filter(s => s !== luckySeat);
+  // 老田金钟罩: he's never picked as a donor for the lucky buff.
+  const donorSeats = [0,1,2,3,4,5].filter(s => s !== luckySeat && s !== laotianSeat);
   let upgrades = 0;
   while (upgrades < targetExtra) {
     const myLow = hands[luckySeat].filter(c => c.rank < 10).sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit);
@@ -806,9 +964,27 @@ function applyLuckyBuff(hands, luckySeat) {
     sortHand(hands[donor]);
     upgrades += 1;
   }
+
+  // ...and trying it on him backfires: one reversed exchange where the lucky
+  // seat loses a high card to 老田 instead, no matter how the loop above went.
+  let reflected = false;
+  if (laotianSeat >= 0 && laotianSeat !== luckySeat && (hands[laotianSeat]?.length || 0) > 0) {
+    const myLow = [...hands[laotianSeat]].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)[0];
+    const theirHigh = [...hands[luckySeat]].filter(isHigh).sort((a, b) => (a.rank !== b.rank) ? b.rank - a.rank : a.suit - b.suit)[0];
+    if (myLow && theirHigh) {
+      hands[laotianSeat] = removeSpecificCards(hands[laotianSeat], [myLow]);
+      hands[luckySeat] = removeSpecificCards(hands[luckySeat], [theirHigh]);
+      pushCards(hands[laotianSeat], [theirHigh]);
+      pushCards(hands[luckySeat], [myLow]);
+      sortHand(hands[laotianSeat]);
+      sortHand(hands[luckySeat]);
+      reflected = true;
+    }
+  }
+  return { reflected };
 }
 
-function deal(cheatSeat = -1, luckySeat = -1) {
+function deal(cheatSeat = -1, luckySeat = -1, laotianSeat = -1) {
   const deck = createDeck(6);
   shuffle(deck);
   const hands = [[], [], [], [], [], []];
@@ -838,7 +1014,7 @@ function deal(cheatSeat = -1, luckySeat = -1) {
     }
   }
 
-  if (luckySeat >= 0 && luckySeat !== cheatSeat) applyLuckyBuff(hands, luckySeat);
+  if (luckySeat >= 0 && luckySeat !== cheatSeat) applyLuckyBuff(hands, luckySeat, laotianSeat);
   hands.forEach(sortHand);
   return hands;
 }
@@ -910,19 +1086,21 @@ function goujiThreshold(rank) {
   return Infinity;
 }
 
-function isPureGoujiPlay(cards) {
+function isPureGoujiPlay(cards, thresholdOverride = null) {
   const a = analyzePlay(cards);
   if (!a) return false;
   if (a.baseRank >= 16) return a.flowerCount === 0 && a.twos === 0;
-  return a.flowerCount === 0 && a.twos === 0 && a.smallJokers === 0 && a.bigJokers === 0 && a.baseCount >= goujiThreshold(a.baseRank);
+  const need = thresholdOverride != null ? thresholdOverride : goujiThreshold(a.baseRank);
+  return a.flowerCount === 0 && a.twos === 0 && a.smallJokers === 0 && a.bigJokers === 0 && a.baseCount >= need;
 }
 
-function isGoujiPlay(cards) {
+function isGoujiPlay(cards, thresholdOverride = null) {
   const a = analyzePlay(cards);
   if (!a) return false;
   if (a.baseRank >= 16) return true;
   if (a.baseRank === 15) return true;
-  return a.coreCount >= goujiThreshold(a.baseRank);
+  const need = thresholdOverride != null ? thresholdOverride : goujiThreshold(a.baseRank);
+  return a.coreCount >= need;
 }
 
 function isShaoPlay(cards) {
@@ -1024,8 +1202,12 @@ function handCanBeatPlay(hand, tableCards) {
   return false;
 }
 
-function canPlayFinalThree(game, seat, cards, remainingAfterPlay) {
+function canPlayFinalThree(game, seat, cards, remainingAfterPlay, room = null) {
   if (!isExactlyAllRank(cards, 3)) return { ok: true };
+  // 如何呢又能怎: this round, the equipped seat can dump 3s any time — no
+  // need to wait for their literal last hand. Purely a legality-gate bypass;
+  // the cards still flow through the normal play/beat pipeline afterward.
+  if (room && hasEquip(room, seat, 'ruhe_ne')) return { ok: true };
   if (remainingAfterPlay.length !== 0) return { ok: false, msg: '3只能作为最后一手牌打出' };
   if (game.tablePlay) return { ok: false, msg: '3只能在新一轮作为最后一手牌打出' };
   for (let p = 0; p < 6; p++) {
@@ -1366,6 +1548,17 @@ function buildRoundTributes(room) {
   const laItems = [...(room.pendingTribute || [])];
   room.pendingTribute = null;
 
+  // 敬自己一杯: wipe the equipped seat's carried-over 点贡/烧贡/闷贡 debt
+  // before it gets converted into this round's tribute items.
+  for (let seat = 0; seat < 6; seat++) {
+    if (hasEquip(room, seat, 'jing_ziji')) {
+      room.burnTributeDebt[seat] = 0;
+      room.menTributeDebt[seat] = 0;
+      room.dianTributeDebt[seat] = 0;
+      markEquipUsed(room, seat);
+    }
+  }
+
   for (let seat = 0; seat < 6; seat++) {
     const burn = room.burnTributeDebt?.[seat] || 0;
     const men = room.menTributeDebt?.[seat] || 0;
@@ -1591,6 +1784,7 @@ function createGameState(hands, firstPlayer, roundNumber, tributeLog = [], buySa
     peekMax: [0,0,0,0,0,0].map((_, i) => ((players.find(p => p.seat === i)?.name || '').trim() === '张哲' ? 3 : 0)),
     jiangThrowUses: [0,0,0,0,0,0],
     jiangThrowMax: [0,0,0,0,0,0].map((_, i) => ((players.find(p => p.seat === i)?.name || '').trim() === '姜海涛' ? 1 : 0)),
+    alphaStrikeUsed: [false,false,false,false,false,false],
   };
 }
 
@@ -1646,10 +1840,10 @@ function getStateForPlayer(room, seat) {
     peekMax: game.peekMax || [0,0,0,0,0,0],
     jiangThrowUses: game.jiangThrowUses || [0,0,0,0,0,0],
     jiangThrowMax: game.jiangThrowMax || [0,0,0,0,0,0],
-    canPeek: ((me?.name || '').trim() === '张哲') && game.currentPlayer !== seat && !game.finished[seat] && ((game.peekUses?.[seat] || 0) < (game.peekMax?.[seat] || 0)),
+    canPeek: (((me?.name || '').trim() === '张哲') || hasEquip(room, seat, 'yanpai')) && game.currentPlayer !== seat && !game.finished[seat] && ((game.peekUses?.[seat] || 0) < (game.peekMax?.[seat] || 0)),
     canJiangThrow: ((me?.name || '').trim() === '姜海涛') && !game.finished[seat] && ((activeSeats(game).length || 0) > 2) && ((game.jiangThrowUses?.[seat] || 0) < (game.jiangThrowMax?.[seat] || 0)) && !currentReturnTask,
-    canStrategist: ((me?.name || '').trim() === '陈杰') && !!game.finished[seat] && getRemainingTeammateSeats(game, seat).length > 0,
-    strategistTargets: getRemainingTeammateSeats(game, seat),
+    canStrategist: ((me?.name || '').trim() === '陈杰') && !!game.finished[seat] && getVisibleTeammateSeats(room, game, seat).length > 0,
+    strategistTargets: getVisibleTeammateSeats(room, game, seat),
     canLet: canLetTeammate(game, seat),
     returnEndsAt: game.returnEndsAt || 0,
     pendingReturnTask: currentReturnTask && currentReturnTask.owedBy === seat ? currentReturnTask : null,
@@ -1658,7 +1852,33 @@ function getStateForPlayer(room, seat) {
     hasPendingBuyFour: !!currentBuyFourTask,
     canBurn: canBurnNow,
     canJieShao: canJieShaoNow,
+    myEquipment: getSeatEquipment(room, seat),
+    poolStats: hasEquip(room, seat, 'saibo_duizhang') ? getPlayedPoolStats(game) : null,
+    canForceSkip: canForceSkipNow(room, seat),
+    forceSkipUsed: !!room.weiBufanSkipUsed,
+    canAlphaStrike: ((me?.name || '').trim() === '王晓') && !game.finished[seat] && !game.finished[(seat + 3) % 6] && !game.alphaStrikeUsed?.[seat] && !currentReturnTask && !currentBuyFourTask,
   };
+}
+
+// 点名: 魏不凡整局限一次，只能在完全正常的回合（有牌可接、非够级围攻、目标没在
+// 烧牌、不是开点阶段、没有还贡/买4任务）对当前正在出牌的人使用，逼他跳过这轮。
+function canForceSkipNow(room, seat) {
+  const game = room.game;
+  if (!game) return false;
+  const me = room.players.find(p => p.seat === seat);
+  if ((me?.name || '').trim() !== '魏不凡') return false;
+  if (room.weiBufanSkipUsed) return false;
+  const target = game.currentPlayer;
+  if (target < 0 || target === seat || game.finished[target]) return false;
+  if (!game.tablePlay || game.isGoujiMode || game.activeBurns?.[target] || game.canKaiDian === target) return false;
+  if (getCurrentReturnTask(game) || getCurrentBuyFourTask(game)) return false;
+  return true;
+}
+
+function getPlayedPoolStats(game) {
+  const pool = game.playedPool || [];
+  const count = (rank) => pool.filter(c => c.rank === rank).length;
+  return { bigJokers: count(17), smallJokers: count(16), twos: count(15) };
 }
 
 function getSoundCueForLastAction(room, seat) {
@@ -1807,12 +2027,17 @@ function finishGame(room) {
   settleDianTributes(room);
   room.pendingTribute = computePendingTribute(room.game.rankings);
   room.nextStarterSeat = room.game.rankings?.[5] ?? -1;
+  const equipGrant = grantConsolationEquipment(room);
   room.players.forEach(p => {
     io.to(p.id).emit('game_over', {
       rankings: room.game.rankings,
       players: room.players.map(pp => ({ name: pp.name, seat: pp.seat })),
     });
   });
+  if (equipGrant) {
+    const seatName = room.players.find(p => p.seat === equipGrant.seat)?.name || `${equipGrant.seat + 1}号`;
+    io.to(room.code).emit('toast_msg', { msg: `${seatName} 垫底获得装备卡：${equipGrant.item.name}，下一局生效` });
+  }
 }
 
 function executeFourChoice(room, seat, cards, kind = 'normal4') {
@@ -1841,6 +2066,7 @@ function executeFourChoice(room, seat, cards, kind = 'normal4') {
 }
 
 function processPlay(room, seat, cardIds, playMode = 'normal') {
+  if (!room || room.state !== 'playing') return { ok: false, msg: '对局不存在' };
   const game = room.game;
   if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能出牌' };
   if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段，暂不能出牌' };
@@ -1875,7 +2101,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   }
 
   const remainingAfterPlay = remainingAfterPlayEarly;
-  const threeCheck = canPlayFinalThree(game, seat, cards, remainingAfterPlay);
+  const threeCheck = canPlayFinalThree(game, seat, cards, remainingAfterPlay, room);
   if (!threeCheck.ok) return threeCheck;
 
   const oppositeOfPrev = prevPlay ? ((prevPlay.player + 3) % 6) : -1;
@@ -1905,8 +2131,13 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   game.playedPool.push(...cards.map(cloneCard));
   if (cards.some(c => c.rank === 4)) game.lostKaiDian[seat] = true;
 
-  const pureGouji = isPureGoujiPlay(cards);
-  const triggersGouji = isGoujiPlay(cards) && activeSeats(game).length >= 5 && useGoujiRestrictions(game, seat, (seat + 3) % 6);
+  // 万物皆可不基础: this round the equipped seat's 够级 threshold is 1 card
+  // lower. Only feeds the two boolean checks below — the actual cards played,
+  // canBeat/analyzePlay validation, and every downstream burn/turn handoff
+  // are the same already-hardened code path a normal gouji play takes.
+  const goujiThresholdOverride = hasEquip(room, seat, 'bu_jichu') ? Math.max(1, goujiThreshold(analyzed.baseRank) - 1) : null;
+  const pureGouji = isPureGoujiPlay(cards, goujiThresholdOverride);
+  const triggersGouji = isGoujiPlay(cards, goujiThresholdOverride) && activeSeats(game).length >= 5 && useGoujiRestrictions(game, seat, (seat + 3) % 6);
   const isShao = isBurnResponse;
   const isJieShao = respondingToBurn && isOppositeResponse;
 
@@ -2012,6 +2243,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
 }
 
 function processPass(room, seat) {
+  if (!room || room.state !== 'playing') return { ok: false, msg: '对局不存在' };
   const game = room.game;
   if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能过牌' };
   if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段，暂不能过牌' };
@@ -2038,13 +2270,22 @@ function processPass(room, seat) {
 
   if (game.isGoujiMode) {
     const opposite = game.goujiPair[1];
-    if (seat !== opposite) {
+    let endGouji = seat === opposite;
+    if (!endGouji) {
       const nextResponder = nextBurnResponder(game);
       if (nextResponder >= 0) {
         game.currentPlayer = nextResponder;
         return { ok: true };
       }
-    } else {
+      // nextBurnResponder found nobody left (e.g. the designated "opposite"
+      // finished their hand out-of-turn via some other skill mid-queue).
+      // Previously this fell through into the normal non-gouji passing logic
+      // below while leaving isGoujiMode/burnQueue set — a corrupted state
+      // that could misbehave on the next pass. Close the gouji phase out
+      // properly instead, exactly like the "opposite passes" case does.
+      endGouji = true;
+    }
+    if (endGouji) {
       game.isGoujiMode = false;
       game.burnQueue = [];
       const attacker = game.goujiPair[0];
@@ -2098,6 +2339,7 @@ function processPass(room, seat) {
 }
 
 function processLet(room, seat) {
+  if (!room || room.state !== 'playing') return { ok: false, msg: '对局不存在' };
   const game = room.game;
   if (getCurrentReturnTask(game)) return { ok: false, msg: '还贡阶段，暂不能让牌' };
   if (getCurrentBuyFourTask(game)) return { ok: false, msg: '买4阶段，暂不能让牌' };
@@ -2172,7 +2414,12 @@ io.on('connection', (socket) => {
 
     const cheatSeat = room.cheatArmed ? room.players.find(p => p.id === room.hostId)?.seat ?? -1 : -1;
     const luckySeat = getLuckyBoostSeat(room.players);
-    const hands = deal(cheatSeat, luckySeat);
+    const laotianSeat = getLaotianSeat(room.players);
+    const hands = deal(cheatSeat, luckySeat, laotianSeat);
+    if (luckySeat >= 0 && luckySeat !== cheatSeat && laotianSeat >= 0 && laotianSeat !== luckySeat) {
+      const luckyName = room.players.find(p => p.seat === luckySeat)?.name || ('座位' + (luckySeat + 1));
+      io.to(room.code).emit('toast_msg', { msg: `🛡️ 老田金钟罩：${luckyName} 的幸运光环对他没用，还倒贴了一张好牌给老田` });
+    }
 
     const roundTributes = buildRoundTributes(room);
     const stealLog = applyPointTributeSteal(hands, roundTributes);
@@ -2189,6 +2436,11 @@ io.on('connection', (socket) => {
     room.game.forceKaiDianThisRound = [...(room.forceKaiDianThisRound || [false,false,false,false,false,false])];
     room.state = 'playing';
     room.cheatArmed = false;
+
+    // 我要验牌: grant one free peek even if this seat isn't 张哲.
+    for (let s = 0; s < 6; s++) {
+      if (hasEquip(room, s, 'yanpai') && room.game.peekMax[s] < 1) room.game.peekMax[s] = 1;
+    }
 
     if (getCurrentReturnTask(room.game)) scheduleReturnTimer(room);
     else scheduleTurnTimer(room);
@@ -2239,6 +2491,13 @@ io.on('connection', (socket) => {
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
     if (result.gameOver) return finishGame(room);
     io.to(currentRoom).emit('sound_cue', { type: getSoundCueForLastAction(room, currentSeat) });
+    // 可灵AI·霸总语录: purely cosmetic toast, fires whenever the equipped
+    // seat's own play is the one currently flagged as a gouji attack.
+    if (room.game?.tablePlay?.player === currentSeat && room.game.tablePlay.isGouji && hasEquip(room, currentSeat, 'baba_yulu')) {
+      const who = room.players.find(p => p.seat === currentSeat)?.name || ('座位' + (currentSeat + 1));
+      const line = BABA_LINES[Math.floor(Math.random() * BABA_LINES.length)];
+      io.to(currentRoom).emit('toast_msg', { msg: `👑 ${who}：「${line}」` });
+    }
     scheduleTurnTimer(room);
     broadcastState(room);
   });
@@ -2273,11 +2532,20 @@ io.on('connection', (socket) => {
       : `${who} 发动孬急，从 ${result.sourceName} 手里摸到 ${cardText(result.card)}`;
     io.to(currentRoom).emit('toast_msg', { msg: baseMsg });
     io.to(currentRoom).emit('sound_cue', { type: 'secret' });
+    if (hasEquip(room, currentSeat, 'zishujing')) {
+      io.to(currentRoom).emit('toast_msg', { msg: `🍠 紫薯精附体：${who} 孬急得手！` });
+    }
 
     if (result.penalties && result.penalties.length) {
       for (const item of result.penalties) {
         const targetName = room.players.find(p => p.seat === item.target)?.name || ('座位' + (item.target + 1));
-        if (item.ok) {
+        if (item.shielded) {
+          io.to(currentRoom).emit('toast_msg', { msg: `🛡️ 预制护体：${who} 被${targetName}抓中，但免赔了` });
+        } else if (item.ok && item.honestPayer != null) {
+          const honestName = room.players.find(p => p.seat === item.honestPayer)?.name || ('座位' + (item.honestPayer + 1));
+          io.to(currentRoom).emit('toast_msg', { msg: `🤝 老好人：${who} 被${targetName}抓中，队友${honestName}主动顶上，赔出 ${cardText(item.card)}` });
+          io.to(currentRoom).emit('sound_cue', { type: 'caught' });
+        } else if (item.ok) {
           io.to(currentRoom).emit('toast_msg', { msg: `${who} 被${targetName}抓中，赔出 ${cardText(item.card)}` });
           io.to(currentRoom).emit('sound_cue', { type: 'caught' });
         } else {
@@ -2287,6 +2555,11 @@ io.on('connection', (socket) => {
     }
 
     if (maybeGameOver(room.game)) return finishGame(room);
+    // A naoji penalty payout can empty someone's hand and finish them
+    // out-of-turn, which shifts game.currentPlayer without the running turn
+    // timer knowing about it — resync so the clock always matches whoever
+    // is actually up.
+    scheduleTurnTimer(room);
     broadcastState(room);
   });
 
@@ -2304,15 +2577,25 @@ io.on('connection', (socket) => {
     for (const item of result.results) {
       const fromName = room.players.find(p => p.seat === item.fromSeat)?.name || ('座位' + (item.fromSeat + 1));
       const actName = item.windowType === 'peek' ? '验牌' : (item.windowType === 'throw2' ? '扔牌' : '孬急');
-      if (item.ok) {
+      if (item.shielded) {
+        io.to(currentRoom).emit('toast_msg', { msg: `🛡️ 预制护体：${who} 抓到 ${fromName} 的${actName}，但对方免赔了` });
+      } else if (item.ok && item.honestPayer != null) {
+        const honestName = room.players.find(p => p.seat === item.honestPayer)?.name || ('座位' + (item.honestPayer + 1));
+        io.to(currentRoom).emit('toast_msg', { msg: `🤝 老好人：${who} 抓到 ${fromName} 的${actName}，队友${honestName}主动顶上，赔出 ${cardText(item.card)}` });
+        io.to(currentRoom).emit('sound_cue', { type: 'caught' });
+      } else if (item.ok) {
         io.to(currentRoom).emit('toast_msg', { msg: `${who} 抓到 ${fromName} 的${actName}，获得 ${cardText(item.card)}` });
         io.to(currentRoom).emit('sound_cue', { type: 'caught' });
+        if (hasEquip(room, currentSeat, 'zishujing')) {
+          io.to(currentRoom).emit('toast_msg', { msg: `🍠 紫薯精附体：${who} 抓牌得手！` });
+        }
       } else {
         io.to(currentRoom).emit('toast_msg', { msg: `${who} 抓到 ${fromName} 的${actName}，但对方没有2以上的牌` });
       }
     }
 
     if (maybeGameOver(room.game)) return finishGame(room);
+    scheduleTurnTimer(room);
     broadcastState(room);
   });
 
@@ -2331,11 +2614,24 @@ io.on('connection', (socket) => {
     });
     io.to(currentRoom).emit('toast_msg', { msg: `${who} 发动了验牌` });
     io.to(currentRoom).emit('sound_cue', { type: 'secret' });
+    if (hasEquip(room, currentSeat, 'zishujing')) {
+      io.to(currentRoom).emit('toast_msg', { msg: `🍠 紫薯精附体：${who} 验牌得手！` });
+    }
+    if (result.reflectedSeats && result.reflectedSeats.length) {
+      const laoName = room.players.find(p => p.seat === result.reflectedSeats[0])?.name || '老田';
+      io.to(currentRoom).emit('toast_msg', { msg: `🛡️ 老田金钟罩：${who} 没看成${laoName}的牌，反被${laoName}偷看了一眼` });
+    }
 
     if (result.penalties && result.penalties.length) {
       for (const item of result.penalties) {
         const targetName = room.players.find(p => p.seat === item.target)?.name || ('座位' + (item.target + 1));
-        if (item.ok) {
+        if (item.shielded) {
+          io.to(currentRoom).emit('toast_msg', { msg: `🛡️ 预制护体：${who} 验牌被${targetName}抓中，但免赔了` });
+        } else if (item.ok && item.honestPayer != null) {
+          const honestName = room.players.find(p => p.seat === item.honestPayer)?.name || ('座位' + (item.honestPayer + 1));
+          io.to(currentRoom).emit('toast_msg', { msg: `🤝 老好人：${who} 验牌被${targetName}抓中，队友${honestName}主动顶上，赔出 ${cardText(item.card)}` });
+          io.to(currentRoom).emit('sound_cue', { type: 'caught' });
+        } else if (item.ok) {
           io.to(currentRoom).emit('toast_msg', { msg: `${who} 验牌被${targetName}抓中，赔出 ${cardText(item.card)}` });
           io.to(currentRoom).emit('sound_cue', { type: 'caught' });
         } else {
@@ -2345,6 +2641,7 @@ io.on('connection', (socket) => {
     }
 
     if (maybeGameOver(room.game)) return finishGame(room);
+    scheduleTurnTimer(room);
     broadcastState(room);
   });
 
@@ -2356,12 +2653,22 @@ io.on('connection', (socket) => {
 
     socket.emit('toast_msg', { msg: `已发动扔牌，悄悄扔出 ${result.removedCount} 张` });
     io.to(currentRoom).emit('sound_cue', { type: 'throw2' });
+    if (hasEquip(room, currentSeat, 'zishujing')) {
+      const who0 = room.players.find(p => p.seat === currentSeat)?.name || ('座位' + (currentSeat + 1));
+      io.to(currentRoom).emit('toast_msg', { msg: `🍠 紫薯精附体：${who0} 扔牌得手！` });
+    }
 
     if (result.penalties && result.penalties.length) {
       const who = room.players.find(p => p.seat === currentSeat)?.name || ('座位' + (currentSeat + 1));
       for (const item of result.penalties) {
         const targetName = room.players.find(p => p.seat === item.target)?.name || ('座位' + (item.target + 1));
-        if (item.ok) {
+        if (item.shielded) {
+          io.to(currentRoom).emit('toast_msg', { msg: `🛡️ 预制护体：${who} 扔牌被${targetName}抓中，但免赔了` });
+        } else if (item.ok && item.honestPayer != null) {
+          const honestName = room.players.find(p => p.seat === item.honestPayer)?.name || ('座位' + (item.honestPayer + 1));
+          io.to(currentRoom).emit('toast_msg', { msg: `🤝 老好人：${who} 扔牌被${targetName}抓中，队友${honestName}主动顶上，赔出 ${cardText(item.card)}` });
+          io.to(currentRoom).emit('sound_cue', { type: 'caught' });
+        } else if (item.ok) {
           io.to(currentRoom).emit('toast_msg', { msg: `${who} 扔牌被${targetName}抓中，赔出 ${cardText(item.card)}` });
           io.to(currentRoom).emit('sound_cue', { type: 'caught' });
         } else {
@@ -2371,6 +2678,85 @@ io.on('connection', (socket) => {
     }
 
     if (maybeGameOver(room.game)) return finishGame(room);
+    scheduleTurnTimer(room);
+    broadcastState(room);
+  });
+
+  socket.on('force_skip', () => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const game = room.game;
+    const me = room.players.find(p => p.seat === currentSeat);
+    if ((me?.name || '').trim() !== '魏不凡') return socket.emit('error_msg', { msg: '只有魏不凡可以使用「点名」' });
+    if (room.weiBufanSkipUsed) return socket.emit('error_msg', { msg: '「点名」整局只能用一次，已经用过了' });
+    const target = game.currentPlayer;
+    if (target < 0 || target === currentSeat || game.finished[target]) {
+      return socket.emit('error_msg', { msg: '现在没有合适的目标' });
+    }
+    // Only usable on a completely normal turn — same conditions processPass
+    // itself already enforces (no active burn, no gouji chase, no kaidian,
+    // no return/buy-four task) — reusing processPass below means this can
+    // never desync currentPlayer/timers any differently than a real pass would.
+    if (!game.tablePlay || game.isGoujiMode || game.activeBurns?.[target] || game.canKaiDian === target || getCurrentReturnTask(game) || getCurrentBuyFourTask(game)) {
+      return socket.emit('error_msg', { msg: '现在不是完全正常的回合，不能用「点名」（够级/烧牌/开点时不行）' });
+    }
+    const targetName0 = (room.players.find(p => p.seat === target)?.name || '').trim();
+    if (targetName0 === '老田') {
+      // 老田金钟罩: immune, and the attempt still burns 魏不凡's one-and-only
+      // use. No queued/deferred effect on 魏不凡 himself — it's not his turn
+      // right now, and faking a "skip his future turn" state is exactly the
+      // kind of deferred-effect complexity that risks a stuck turn later.
+      room.weiBufanSkipUsed = true;
+      io.to(currentRoom).emit('toast_msg', { msg: `🛡️ 老田金钟罩：${me.name} 的「点名」被弹开了，白白浪费了整局唯一一次机会！` });
+      broadcastState(room);
+      return;
+    }
+    const result = processPass(room, target);
+    if (!result.ok) return socket.emit('error_msg', { msg: result.msg || '现在不能对TA使用「点名」' });
+    room.weiBufanSkipUsed = true;
+    const targetName = room.players.find(p => p.seat === target)?.name || ('座位' + (target + 1));
+    io.to(currentRoom).emit('toast_msg', { msg: `📣 ${me.name} 发动「点名」，强制 ${targetName} 跳过这一轮！（整局仅此一次）` });
+    scheduleTurnTimer(room);
+    broadcastState(room);
+  });
+
+  socket.on('alpha_strike', () => {
+    const room = rooms[currentRoom];
+    if (!room || !room.game) return;
+    const game = room.game;
+    const me = room.players.find(p => p.seat === currentSeat);
+    if ((me?.name || '').trim() !== '王晓') return socket.emit('error_msg', { msg: '只有王晓可以使用「阿尔法突袭」' });
+    if (game.finished[currentSeat]) return socket.emit('error_msg', { msg: '你已经出完了' });
+    if (game.alphaStrikeUsed?.[currentSeat]) return socket.emit('error_msg', { msg: '「阿尔法突袭」这局已经用过了' });
+    if (getCurrentReturnTask(game) || getCurrentBuyFourTask(game)) return socket.emit('error_msg', { msg: '当前阶段不能用' });
+    const oppositeSeat = (currentSeat + 3) % 6;
+    if (game.finished[oppositeSeat]) return socket.emit('error_msg', { msg: '对家已经出完了，抢不到' });
+    const oppName = room.players.find(p => p.seat === oppositeSeat)?.name || ('座位' + (oppositeSeat + 1));
+
+    // 老田金钟罩: if the opposite seat is 老田, the raid bounces — roles swap
+    // and 老田 raids 王晓 instead, using the exact same swap logic below.
+    const reflected = oppName.trim() === '老田';
+    const actingSeat = reflected ? oppositeSeat : currentSeat;
+    const losingSeat = reflected ? currentSeat : oppositeSeat;
+
+    const grabbed = getHighestCards(game.hands[losingSeat], 1);
+    if (!grabbed.length) return socket.emit('error_msg', { msg: reflected ? '你没有牌可以被抢' : '对家没有牌可抢' });
+    const given = getLowestCards(game.hands[actingSeat], 1);
+    if (!given.length) return socket.emit('error_msg', { msg: reflected ? '老田没有牌可以补偿你' : '你没有牌可以补偿对家' });
+
+    game.hands[losingSeat] = removeSpecificCards(game.hands[losingSeat], grabbed);
+    game.hands[actingSeat] = removeSpecificCards(game.hands[actingSeat], given);
+    pushCards(game.hands[actingSeat], grabbed);
+    pushCards(game.hands[losingSeat], given);
+    sortHand(game.hands[actingSeat]);
+    sortHand(game.hands[losingSeat]);
+    game.alphaStrikeUsed[currentSeat] = true;
+
+    if (reflected) {
+      io.to(currentRoom).emit('toast_msg', { msg: `🛡️ 老田金钟罩：${me.name} 的「阿尔法突袭」被弹开，反被老田抢走 ${cardText(grabbed[0])}，倒贴了一张 ${cardText(given[0])}` });
+    } else {
+      io.to(currentRoom).emit('toast_msg', { msg: `⚡ ${me.name} 发动「阿尔法突袭」，从 ${oppName} 手里抢走 ${cardText(grabbed[0])}，补偿了一张 ${cardText(given[0])}` });
+    }
     broadcastState(room);
   });
 
