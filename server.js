@@ -280,6 +280,11 @@ function getPenaltyCardAboveTwo(hand) {
     .sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)[0] || null;
 }
 
+// 扔牌被抓时优先赔2，没有2再赔小王、大王。
+function getPenaltyCardTwoFirst(hand) {
+  return getPenaltyCardAboveTwo(hand);
+}
+
 function buildNaojiCandidates(game, seat) {
   const candidates = [];
   for (let s = 0; s < 6; s++) {
@@ -645,7 +650,7 @@ function handleTurnTimeout(room) {
     if (autoIds.length > 0) {
       result = processPlay(room, seat, autoIds);
       io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，已自动续烧` });
-      io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat) });
+      io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat, result) });
     } else {
       maybeFailActiveBurnAtTurnStart(room, seat);
       io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，烧牌失败` });
@@ -659,7 +664,7 @@ function handleTurnTimeout(room) {
     if (autoIds.length > 0) {
       result = processPlay(room, seat, autoIds);
       io.to(room.code).emit('toast_msg', { msg: `${playerName} 超时，已自动出牌` });
-      io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat) });
+      io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat, result) });
     } else {
       const next = nextActiveSeat(game, seat);
       game.playerActions[seat] = { type: 'timeout' };
@@ -1881,8 +1886,11 @@ function getPlayedPoolStats(game) {
   return { bigJokers: count(17), smallJokers: count(16), twos: count(15) };
 }
 
-function getSoundCueForLastAction(room, seat) {
+function getSoundCueForLastAction(room, seat, result = null) {
+  if (result?.autoKind === 'kaidian' || result?.autoKind === 'autokaidian') return 'kaidian';
+  if (result?.autoKind === 'normal4') return 'play';
   const act = room?.game?.playerActions?.[seat];
+  if (act?.type === 'pass' || act?.type === 'yield') return 'pass';
   if (!act || act.type !== 'play') return 'play';
   if (act.isShao || act.isFanShao) return 'burn';
   if (act.isJieShao) return 'jieshao';
@@ -1963,7 +1971,7 @@ function runBotStep(room) {
     return;
   }
 
-  io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat) });
+  io.to(room.code).emit('sound_cue', { type: getSoundCueForLastAction(room, seat, result) });
   scheduleTurnTimer(room);
   broadcastState(room);
 }
@@ -2490,7 +2498,7 @@ io.on('connection', (socket) => {
     const result = processPlay(room, currentSeat, cardIds || [], mode || 'normal');
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
     if (result.gameOver) return finishGame(room);
-    io.to(currentRoom).emit('sound_cue', { type: getSoundCueForLastAction(room, currentSeat) });
+    io.to(currentRoom).emit('sound_cue', { type: getSoundCueForLastAction(room, currentSeat, result) });
     // 可灵AI·霸总语录: purely cosmetic toast, fires whenever the equipped
     // seat's own play is the one currently flagged as a gouji attack.
     if (room.game?.tablePlay?.player === currentSeat && room.game.tablePlay.isGouji && hasEquip(room, currentSeat, 'baba_yulu')) {
@@ -2507,6 +2515,8 @@ io.on('connection', (socket) => {
     if (!room || !room.game) return;
     const result = processPass(room, currentSeat);
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
+    if (result.gameOver) return finishGame(room);
+    io.to(currentRoom).emit('sound_cue', { type: result.autoKind ? getSoundCueForLastAction(room, currentSeat, result) : 'pass' });
     scheduleTurnTimer(room);
     broadcastState(room);
   });
@@ -2516,6 +2526,7 @@ io.on('connection', (socket) => {
     if (!room || !room.game) return;
     const result = processLet(room, currentSeat);
     if (!result.ok) return socket.emit('error_msg', { msg: result.msg });
+    io.to(currentRoom).emit('sound_cue', { type: 'pass' });
     scheduleTurnTimer(room);
     broadcastState(room);
   });

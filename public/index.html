@@ -2,2742 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>够级 - 联网对战</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Ma+Shan+Zheng&display=swap');
-
-* { margin:0; padding:0; box-sizing:border-box; }
-
-:root {
-  --felt: #145233;
-  --felt-dark: #071c11;
-  --felt-light: #1e7a49;
-  --gold: #dfb15c;
-  --gold-light: #ffdf9e;
-  --red: #d6493f;
-  --wood: #6e4326;
-  --wood-dark: #3a2414;
-  --team-a: #e2564e;
-  --team-a-light: #ff8f79;
-  --team-b: #4e8fe0;
-  --team-b-light: #7fc2ff;
-  --panel-bg: linear-gradient(to bottom, rgba(15,32,22,0.92), rgba(8,19,13,0.97));
-  --panel-border: rgba(223,177,92,0.22);
-  --bottom-panel-h: 350px;
-}
-
-body {
-  background: #0a0a0a;
-  font-family: 'Noto Serif SC', serif;
-  overflow-x: hidden;
-  overflow-y: auto;
-  min-height: 100vh; min-height: 100dvh;
-  width: 100vw;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
-}
-
-/* ============ LOBBY ============ */
-#lobby {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  min-height: 100vh;
-  min-height: 100dvh;
-  background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
-  padding: clamp(16px, 3vw, 28px);
-  gap: clamp(10px, 1.8vw, 16px);
-}
-
-.lobby-title {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 48px;
-  color: var(--gold);
-  letter-spacing: 12px;
-  text-shadow: 0 0 30px rgba(212,168,67,0.4);
-  margin-bottom: 10px;
-}
-
-.lobby-sub {
-  color: rgba(255,255,255,0.5);
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
-.lobby-input {
-  width: 260px;
-  padding: 12px 16px;
-  font-size: 18px;
-  font-family: 'Noto Serif SC', serif;
-  border: 2px solid rgba(212,168,67,0.4);
-  border-radius: 10px;
-  background: rgba(0,0,0,0.4);
-  color: #fff;
-  text-align: center;
-  outline: none;
-}
-
-.lobby-input::placeholder { color: rgba(255,255,255,0.3); }
-.lobby-input:focus { border-color: var(--gold); }
-
-.lobby-btn {
-  width: 260px;
-  padding: 14px;
-  font-size: 20px;
-  font-family: 'Ma Shan Zheng', cursive;
-  letter-spacing: 4px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: linear-gradient(to bottom, #d4a843, #b8922a);
-  color: #1a1a1a;
-}
-.btn-primary:hover { background: linear-gradient(to bottom, #f0d080, #d4a843); }
-
-.btn-secondary {
-  background: rgba(255,255,255,0.1);
-  color: var(--gold);
-  border: 2px solid rgba(212,168,67,0.4);
-}
-
-.lobby-or {
-  color: rgba(255,255,255,0.3);
-  font-size: 14px;
-}
-
-#lobby-error {
-  color: #ff6b6b;
-  font-size: 14px;
-  min-height: 20px;
-}
-
-/* ============ WAITING ROOM ============ */
-#waiting {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  min-height: 100vh;
-  min-height: 100dvh;
-  background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
-  padding: clamp(16px, 3vw, 28px);
-  gap: clamp(10px, 1.8vw, 16px);
-}
-
-.room-code {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 22px;
-  color: var(--gold-light);
-  letter-spacing: 3px;
-}
-
-.room-code span {
-  font-size: 40px;
-  color: #fff;
-  letter-spacing: 4px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-weight: 800;
-  font-style: normal;
-  background: rgba(0,0,0,0.4);
-  padding: 6px 18px;
-  border-radius: 10px;
-  border: 2px solid var(--gold);
-  margin-left: 10px;
-}
-
-.player-list {
-  width: 100%;
-  background: rgba(0,0,0,0.3);
-  border-radius: 12px;
-  border: 1px solid rgba(212,168,67,0.2);
-  padding: 14px;
-}
-
-.player-slot {
-  display: flex;
-  align-items: center;
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  font-size: 16px;
-  color: #ccc;
-}
-.player-slot:last-child { border-bottom: none; }
-
-.player-slot .seat-num {
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  margin-right: 10px;
-  color: #fff;
-}
-.team-a-bg { background: #cc4444; }
-.team-b-bg { background: #3377cc; }
-
-.player-slot .pname {
-  flex: 1;
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 20px;
-}
-.player-slot .pname.empty { color: rgba(255,255,255,0.2); font-style: italic; }
-.player-slot .host-tag {
-  font-size: 11px;
-  color: var(--gold);
-  background: rgba(212,168,67,0.15);
-  padding: 2px 6px;
-  border-radius: 6px;
-}
-
-.waiting-hint {
-  color: rgba(255,255,255,0.4);
-  font-size: 13px;
-  text-align: center;
-  line-height: 1.6;
-}
-
-#btn-start {
-  width: 100%;
-  padding: 14px;
-  font-size: 22px;
-  font-family: 'Ma Shan Zheng', cursive;
-  letter-spacing: 6px;
-  border: none;
-  border-radius: 10px;
-  background: linear-gradient(to bottom, #d4a843, #b8922a);
-  color: #1a1a1a;
-  cursor: pointer;
-}
-#btn-start:disabled { opacity: 0.3; cursor: default; }
-
-/* ============ GAME TABLE ============ */
-#game {
-  display: none;
-  position: relative;
-  width: 100vw;
-  height: 100vh; height: 100dvh;
-  background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 80%, #0a1a0f 100%);
-  overflow: hidden;
-}
-
-#game::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 3h1v1H1V3zm2-2h1v1H3V1z' fill='%23000' fill-opacity='.06'/%3E%3C/svg%3E");
-  pointer-events: none; z-index: 0;
-}
-
-#game-title {
-  position: absolute;
-  top: 8px; left: 14px;
-  color: var(--gold);
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 18px;
-  opacity: 0.5;
-  z-index: 2;
-  cursor: default;
-  letter-spacing: 3px;
-}
-
-/* Player labels around the table */
-.plabel {
-  position: absolute;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-
-.plabel .name-tag {
-  color: var(--gold);
-  font-size: 21px;
-  font-family: 'Ma Shan Zheng', cursive;
-  padding: 6px 14px;
-  background: rgba(0,0,0,0.5);
-  border-radius: 10px;
-  border: 1px solid rgba(212,168,67,0.2);
-  white-space: nowrap;
-  transition: all 0.3s;
-}
-
-.plabel .name-tag.is-turn {
-  background: rgba(212,168,67,0.25);
-  border-color: var(--gold);
-  box-shadow: 0 0 12px rgba(212,168,67,0.4);
-}
-
-.plabel .team-indicator {
-  display: inline-block;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-}
-
-.plabel .card-info {
-  font-size: 14px;
-  color: rgba(255,255,255,0.64);
-}
-
-.plabel .action-text {
-  font-size: 15px;
-  font-family: 'Ma Shan Zheng', cursive;
-  color: rgba(255,255,255,0.6);
-  min-height: 18px;
-}
-
-.plabel .finish-text {
-  color: var(--gold);
-  font-size: 15px;
-  font-family: 'Ma Shan Zheng', cursive;
-  text-shadow: 0 0 8px rgba(212,168,67,0.4);
-}
-
-/* 6 positions around table (relative seat from my view) */
-.plabel.pos-0 { bottom: calc(var(--bottom-panel-h) - 8px); left: 50%; transform: translateX(-50%); }
-.plabel.pos-1 { bottom: 34%; right: 12px; align-items: flex-end; }
-.plabel.pos-2 { top: 19%; right: 12px; align-items: flex-end; }
-.plabel.pos-3 { top: 10px; left: 50%; transform: translateX(-50%); }
-.plabel.pos-4 { top: 19%; left: 12px; align-items: flex-start; }
-.plabel.pos-5 { bottom: 34%; left: 12px; align-items: flex-start; }
-
-/* Played cards area per position */
-.played-area {
-  position: absolute;
-  display: flex;
-  gap: 6px;
-  z-index: 4;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  max-width: min(42vw, 760px);
-}
-
-.played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 44px); left: 50%; transform: translateX(-50%); }
-.played-area.ppos-1 { bottom: 27%; right: 5.5%; }
-.played-area.ppos-2 { top: 15%; right: 5.5%; }
-.played-area.ppos-3 { top: 8%; left: 50%; transform: translateX(-50%); }
-.played-area.ppos-4 { top: 15%; left: 5.5%; }
-.played-area.ppos-5 { bottom: 27%; left: 5.5%; }
-
-/* Cards */
-.card {
-  width: 68px; height: 98px;
-  background: linear-gradient(160deg, #ffffff 0%, #f4f1e8 62%, #ece6d4 100%);
-  border-radius: 9px;
-  border: 1px solid rgba(0,0,0,0.14);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 800;
-  cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 5px 3px -2px rgba(0,0,0,0.12), 0 6px 14px rgba(0,0,0,0.32);
-  flex-shrink: 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.card.red { color: var(--red); }
-.card.black { color: #1a1a1a; }
-.card.joker-big,
-.card.joker-small { color: #fff; border-color: rgba(255,255,255,0.25); }
-.card .rank {
-  font-size: 22px;
-  line-height: 1;
-  z-index: 2;
-  font-weight: 900;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
-}
-.card .suit {
-  font-size: 17px;
-  line-height: 1;
-  z-index: 2;
-  margin-top: 3px;
-  opacity: 0.92;
-}
-
-/* Big soft suit glyph behind the rank — gives the face some depth instead
-   of two flat lines of text floating in the middle of a blank card. */
-.card .pip {
-  position: absolute;
-  z-index: 1;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 3.1em;
-  line-height: 1;
-  opacity: 0.10;
-  pointer-events: none;
-}
-.card.red .pip { color: var(--red); }
-.card.black .pip { color: #1a1a1a; }
-
-/* The local "2" outranks every normal card in 够级, so give it a quiet
-   gold tell instead of looking identical to a plain number card. */
-.card.power-two {
-  border-color: rgba(223,177,92,0.55);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 0 0 1px rgba(223,177,92,0.5), 0 6px 14px rgba(0,0,0,0.32);
-}
-.card.power-two .pip { color: var(--gold); opacity: 0.22; }
-
-/* Corner index — small rank+suit in opposite corners, like a real playing card */
-.card .idx {
-  position: absolute;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1;
-  font-size: 10px;
-  letter-spacing: 0;
-}
-.card .idx b { font-size: 11px; font-weight: 800; }
-.card .idx-tl { top: 5px; left: 5px; }
-.card .idx-br { bottom: 5px; right: 5px; transform: rotate(180deg); }
-.played-area .card .idx,
-.played-area .card .pip,
-#strategist-panel .card .idx,
-#strategist-panel .card .pip,
-.peek-cards .card .idx,
-.peek-cards .card .pip { display: none; }
-.card .joker-face {
-  position: absolute; inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: saturate(1.05) contrast(1.05);
-}
-.card .joker-face.big {
-  background-image:
-    linear-gradient(135deg, rgba(255,77,43,0.68), rgba(255,146,51,0.48)),
-    url('/joker-big-custom');
-}
-.card .joker-face.small {
-  background-image:
-    linear-gradient(135deg, rgba(44,91,255,0.68), rgba(89,209,255,0.44)),
-    url('/joker-small-custom');
-}
-.card .joker-text {
-  position: absolute;
-  left: 5px;
-  bottom: 5px;
-  z-index: 2;
-  font-size: 11px;
-  font-family: 'Ma Shan Zheng', cursive;
-  letter-spacing: 1px;
-  padding: 2px 5px;
-  border-radius: 6px;
-  background: rgba(0,0,0,0.38);
-  backdrop-filter: blur(2px);
-}
-
-.card.selected {
-  transform: translateY(-12px);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 0 0 2px var(--gold), 0 10px 20px rgba(223,177,92,0.4);
-  border-color: var(--gold);
-}
-
-.card:active { transform: translateY(-12px); }
-
-/* Enlarged played cards */
-.played-area .card {
-  width: 52px; height: 74px;
-  font-size: 14px; cursor: default;
-  border-radius: 9px;
-}
-.played-area .card .rank { font-size: 15px; }
-.played-area .card .suit { font-size: 18px; margin-top: 3px; }
-.played-area .card .joker-text { font-size: 10px; left: 4px; bottom: 4px; padding: 1px 4px; }
-.played-area .card.selected { transform: none; }
-
-.gouji-tag {
-  font-size: 10px;
-  color: #ff4444;
-  font-family: 'Ma Shan Zheng', cursive;
-  background: rgba(255,68,68,0.15);
-  padding: 1px 5px;
-  border-radius: 4px;
-  margin-left: 3px;
-}
-
-.kaidian-tag {
-  font-size: 12px;
-  color: #ffdd44;
-  font-family: 'Ma Shan Zheng', cursive;
-  background: rgba(255,220,68,0.2);
-  padding: 2px 8px;
-  border-radius: 6px;
-  border: 1px solid rgba(255,220,68,0.4);
-  animation: kaidian-flash 0.6s ease-in-out 3;
-  margin-left: 4px;
-}
-
-@keyframes kaidian-flash {
-  0%,100% { opacity: 1; }
-  50% { opacity: 0.3; text-shadow: 0 0 10px #ffdd44; }
-}
-
-.dian-badge {
-  display: inline-block;
-  font-size: 12px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  margin-left: 4px;
-  border: 1px solid rgba(255,255,255,0.18);
-}
-.dian-open { color: #4ade80; background: rgba(74,222,128,0.18); }
-.dian-closed { color: #cfcfcf; background: rgba(160,160,160,0.16); }
-.dian-force { color: #ffd36a; background: rgba(255,211,106,0.16); }
-
-.card.locked {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-/* Tribute notification */
-#tribute-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.75);
-  display: none;
-  align-items: center; justify-content: center;
-  flex-direction: column;
-  z-index: 90; gap: 12px;
-}
-#tribute-overlay.show { display: flex; }
-#tribute-overlay h3 {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 24px; color: var(--gold);
-  letter-spacing: 4px;
-}
-.tribute-item {
-  color: #ddd; font-size: 14px;
-  padding: 4px 0;
-  font-family: 'Ma Shan Zheng', cursive;
-}
-.tribute-item .t-type { color: var(--gold); margin-right: 6px; }
-#tribute-overlay button {
-  margin-top: 10px; padding: 8px 30px;
-  font-size: 18px; font-family: 'Ma Shan Zheng', cursive;
-  background: linear-gradient(to bottom, #d4a843, #b8922a);
-  color: #1a1a1a; border: none; border-radius: 8px; cursor: pointer;
-}
-
-/* Bottom interaction panel */
-#bottom-panel {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: min(1320px, 94vw);
-  min-height: var(--bottom-panel-h);
-  z-index: 28;
-  background: linear-gradient(to bottom, rgba(10,25,18,0.78), rgba(6,16,12,0.92));
-  border: 1px solid rgba(212,168,67,0.16);
-  border-bottom: none;
-  border-top-left-radius: 22px;
-  border-top-right-radius: 22px;
-  box-shadow: 0 -10px 35px rgba(0,0,0,0.28);
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-#panel-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 36px;
-}
-
-#turn-timer {
-  color: #fff;
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 22px;
-  background: rgba(0,0,0,0.38);
-  padding: 5px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(212,168,67,0.25);
-  white-space: nowrap;
-}
-
-#panel-meta {
-  color: rgba(255,255,255,0.82);
-  font-size: 13px;
-  text-align: right;
-  line-height: 1.5;
-}
-
-#actions {
-  position: static;
-  transform: none;
-  display: flex;
-  gap: 10px;
-  z-index: 20;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-#actions button {
-  padding: 9px 22px;
-  min-width: 90px;
-  font-size: 18px;
-  font-family: 'Ma Shan Zheng', cursive;
-  border-radius: 11px;
-  cursor: pointer;
-  letter-spacing: 3px;
-  border: 1px solid rgba(255,255,255,0.14);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 3px 8px rgba(0,0,0,0.28);
-  transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
-}
-#actions button:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset, 0 1px 3px rgba(0,0,0,0.3);
-}
-
-.btn-go {
-  background: linear-gradient(to bottom, var(--gold-light), var(--gold) 55%, #b8873a);
-  color: #241a08;
-  border-color: rgba(255,236,190,0.6);
-}
-.btn-no {
-  background: linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(0,0,0,0.28));
-  color: var(--gold-light);
-  border-color: var(--panel-border);
-}
-.btn-special {
-  background: linear-gradient(to bottom, rgba(78,143,224,0.22), rgba(10,16,12,0.82));
-  color: #f0d080;
-  border-color: rgba(223,177,92,0.3);
-}
-.btn-alert {
-  background: linear-gradient(to bottom, #ff9268, #d6493f 60%, #a02b26);
-  color: #fff7e8;
-  border-color: #ffcbb0 !important;
-}
-button:disabled { opacity: 0.35; filter: grayscale(0.3); cursor: default !important; box-shadow: none !important; }
-
-#my-hand-wrap {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding-bottom: 2px;
-  -webkit-overflow-scrolling: touch;
-}
-
-#my-hand {
-  position: static;
-  transform: none;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  align-content: flex-start;
-  gap: 14px 12px;
-  z-index: 10;
-  width: 100%;
-  justify-content: flex-start;
-  padding: 8px 8px 24px;
-}
-
-.card-group {
-  display: flex;
-  align-items: flex-end;
-  position: relative;
-  flex-shrink: 0;
-  min-height: 126px;
-  padding-top: 8px;
-}
-
-.group-count {
-  position: absolute;
-  bottom: -12px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.82);
-  color: var(--gold-light);
-  font-size: 17px;
-  font-weight: 700;
-  min-width: 42px;
-  min-height: 28px;
-  padding: 2px 12px;
-  border-radius: 999px;
-  font-family: 'Ma Shan Zheng', cursive;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(212,168,67,0.3);
-  z-index: 11;
-}
-
-#my-meta {
-  margin-top: 6px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(212,168,67,0.15);
-  color: #ddd;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-@media (max-width: 960px) {
-  :root { --bottom-panel-h: 334px; }
-  .card { width: 50px; height: 72px; }
-  .card .rank { font-size: 14px; }
-  .card .suit { font-size: 15px; }
-  #turn-timer { font-size: 18px; }
-  #actions button { min-width: 78px; padding: 8px 14px; font-size: 16px; letter-spacing: 2px; }
-  .played-area { max-width: min(84vw, 760px); gap: 4px; }
-  .played-area .card { width: 48px; height: 68px; border-radius: 8px; }
-  .played-area .card .rank { font-size: 13px; }
-  .played-area .card .suit { font-size: 16px; margin-top: 3px; }
-  .played-area .card .joker-text { font-size: 8px; left: 3px; bottom: 3px; }
-  .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 34px); }
-  .played-area.ppos-1 { right: 3%; }
-  .played-area.ppos-2 { right: 3%; }
-  .played-area.ppos-4 { left: 3%; }
-  .played-area.ppos-5 { left: 3%; }
-  .plabel.pos-1, .plabel.pos-2 { right: 4px; }
-  .plabel.pos-4, .plabel.pos-5 { left: 4px; }
-}
-
-@media (max-width: 640px) {
-  :root { --bottom-panel-h: 348px; }
-  #bottom-panel { width: 100vw; border-radius: 18px 18px 0 0; padding-left: 10px; padding-right: 10px; }
-  #panel-top { align-items: flex-start; flex-direction: column; }
-  #panel-meta { text-align: left; }
-  #actions { justify-content: flex-start; }
-  .card { width: 46px; height: 68px; border-radius: 8px; }
-  .card-group { min-height: 90px; }
-  .played-area { max-width: 92vw; gap: 3px; }
-  .played-area .card { width: 42px; height: 60px; border-radius: 7px; }
-  .played-area .card .rank { font-size: 12px; }
-  .played-area .card .suit { font-size: 14px; margin-top: 2px; }
-  .played-area .card .joker-text { font-size: 8px; left: 3px; bottom: 3px; }
-  .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 28px); }
-  .played-area.ppos-1 { right: 2%; }
-  .played-area.ppos-2 { right: 2%; }
-  .played-area.ppos-4 { left: 2%; }
-  .played-area.ppos-5 { left: 2%; }
-}
-
-/* Rankings */
-#rankings-panel {
-  position: absolute;
-  top: 6px; right: 8px;
-  z-index: 15;
-  color: var(--gold);
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 12px;
-  background: rgba(0,0,0,0.4);
-  border: 1px solid rgba(212,168,67,0.2);
-  border-radius: 8px;
-  padding: 6px 10px;
-  min-width: 80px;
-}
-#rankings-panel h4 { font-size: 13px; text-align: center; margin-bottom: 3px; border-bottom: 1px solid rgba(212,168,67,0.15); padding-bottom: 3px; }
-
-/* Message toast */
-#toast {
-  position: fixed;
-  top: 50%; left: 50%; transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.85);
-  color: #fff;
-  font-size: 18px;
-  font-family: 'Ma Shan Zheng', cursive;
-  padding: 12px 30px;
-  border-radius: 12px;
-  z-index: 200;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-  letter-spacing: 3px;
-}
-#toast.show { opacity: 1; }
-
-/* Game over overlay */
-#gameover {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.85);
-  display: none;
-  align-items: center; justify-content: center;
-  flex-direction: column;
-  z-index: 100;
-  gap: 16px;
-  pointer-events: auto;
-}
-#gameover.show { display: flex; }
-#gameover .go-card {
-  width: min(560px, calc(100vw - 40px));
-  padding: 28px 26px 24px;
-  border-radius: 24px;
-  background: linear-gradient(to bottom, rgba(8,18,12,0.96), rgba(6,14,10,0.98));
-  border: 1px solid rgba(242,209,134,0.18);
-  box-shadow: 0 28px 60px rgba(0,0,0,0.42);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-}
-#gameover h2 {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 38px;
-  color: var(--gold);
-  letter-spacing: 6px;
-  text-align: center;
-}
-#gameover .go-detail {
-  color: #ccc;
-  font-size: 17px;
-  text-align: center;
-  line-height: 1.9;
-  white-space: pre-line;
-  max-width: 100%;
-}
-#gameover button {
-  min-width: 210px;
-  min-height: 54px;
-  padding: 12px 36px;
-  font-size: 22px;
-  font-family: 'Ma Shan Zheng', cursive;
-  background: linear-gradient(to bottom, #d4a843, #b8922a);
-  color: #1a1a1a;
-  border: none; border-radius: 10px;
-  cursor: pointer;
-  letter-spacing: 4px;
-  pointer-events: auto;
-}
-#gameover button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-#peek-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.72);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 130;
-}
-#peek-overlay.show { display: flex; }
-#peek-box {
-  width: min(1100px, 94vw);
-  background: linear-gradient(to bottom, rgba(16,28,20,0.96), rgba(8,14,10,0.98));
-  border: 1px solid rgba(212,168,67,0.25);
-  border-radius: 18px;
-  padding: 18px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
-}
-#peek-box h3 {
-  color: var(--gold-light);
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 26px;
-  letter-spacing: 4px;
-  margin-bottom: 12px;
-  text-align: center;
-}
-.peek-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 14px;
-}
-.peek-side {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(212,168,67,0.12);
-  border-radius: 14px;
-  padding: 12px;
-}
-.peek-side-title {
-  color: #fff;
-  font-size: 16px;
-  margin-bottom: 10px;
-  font-family: 'Ma Shan Zheng', cursive;
-}
-.peek-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.peek-note {
-  color: rgba(255,255,255,0.65);
-  text-align: center;
-  margin-top: 12px;
-  font-size: 13px;
-}
-@media (max-width: 780px) {
-  .peek-grid { grid-template-columns: 1fr; }
-}
-
-
-
-#strategist-panel {
-  position: fixed;
-  right: 10px;
-  top: 72px;
-  width: min(360px, 34vw);
-  max-height: 52vh;
-  overflow: auto;
-  display: none;
-  z-index: 125;
-  background: linear-gradient(to bottom, rgba(12,22,16,0.96), rgba(8,14,10,0.98));
-  border: 1px solid rgba(212,168,67,0.28);
-  border-radius: 16px;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.3);
-  padding: 12px;
-}
-#strategist-panel.show { display: block; }
-#strategist-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-#strategist-head h3 {
-  color: var(--gold-light);
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 22px;
-  letter-spacing: 3px;
-}
-#strategist-close {
-  border: 1px solid rgba(212,168,67,0.35);
-  background: rgba(255,255,255,0.06);
-  color: #f8e5b0;
-  border-radius: 999px;
-  padding: 4px 10px;
-  cursor: pointer;
-  font-family: 'Ma Shan Zheng', cursive;
-}
-.strategist-note {
-  font-size: 12px;
-  color: rgba(255,255,255,0.62);
-  margin-bottom: 8px;
-}
-.strategist-side {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(212,168,67,0.12);
-  border-radius: 12px;
-  padding: 10px;
-  margin-top: 10px;
-}
-.strategist-side-title {
-  color: #fff;
-  font-size: 15px;
-  margin-bottom: 8px;
-  font-family: 'Ma Shan Zheng', cursive;
-}
-.strategist-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-#strategist-panel .card {
-  width: 34px;
-  height: 48px;
-  font-size: 10px;
-  border-radius: 6px;
-}
-#strategist-panel .card .rank { font-size: 9px; }
-#strategist-panel .card .suit { font-size: 11px; }
-#strategist-panel .joker-text { font-size: 8px; left: 4px; bottom: 4px; }
-
-@media (max-width: 900px) {
-  #strategist-panel {
-    width: min(72vw, 340px);
-    top: 64px;
-    right: 6px;
-    max-height: 48vh;
-  }
-}
-
-
-/* ============ MOBILE PORTRAIT TUNE-UP ============ */
-#rotate-tip {
-  display: none;
-  position: fixed;
-  top: max(8px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 260;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(212,168,67,0.28);
-  background: rgba(6,16,12,0.82);
-  color: var(--gold-light);
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 14px;
-  letter-spacing: 2px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-  pointer-events: none;
-}
-
-@media (max-width: 900px) and (orientation: portrait) {
-  :root { --bottom-panel-h: 45dvh; }
-
-  #rotate-tip { display: block; }
-
-  #game-title {
-    top: calc(env(safe-area-inset-top) + 6px);
-    left: 8px;
-    font-size: 15px;
-    opacity: 0.72;
-  }
-
-  #rankings-panel {
-    top: calc(env(safe-area-inset-top) + 6px);
-    right: 6px;
-    min-width: 68px;
-    padding: 5px 8px;
-    font-size: 10px;
-  }
-  #rankings-panel h4 { font-size: 11px; }
-
-  .plabel .name-tag {
-    font-size: 10px;
-    padding: 2px 8px;
-    max-width: 26vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .plabel .card-info { font-size: 10px; }
-  .plabel .action-text { font-size: 11px; min-height: 14px; }
-  .plabel .finish-text { font-size: 12px; }
-
-  .plabel.pos-0 { bottom: calc(var(--bottom-panel-h) - 8px); }
-  .plabel.pos-1 { bottom: 31%; right: 4px; }
-  .plabel.pos-2 { top: calc(env(safe-area-inset-top) + 82px); right: 4px; }
-  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 8px); }
-  .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 82px); left: 4px; }
-  .plabel.pos-5 { bottom: 31%; left: 4px; }
-
-  .played-area {
-    max-width: 58vw;
-    gap: 2px;
-  }
-  .played-area .card {
-    width: 28px;
-    height: 40px;
-    border-radius: 6px;
-  }
-  .played-area .card .rank { font-size: 10px; }
-  .played-area .card .suit { font-size: 11px; margin-top: 1px; }
-  .played-area .card .joker-text { font-size: 6px; left: 2px; bottom: 2px; }
-  .played-area.ppos-0 { bottom: calc(var(--bottom-panel-h) + 18px); }
-  .played-area.ppos-1 { bottom: 30%; right: 6%; }
-  .played-area.ppos-2 { top: calc(env(safe-area-inset-top) + 110px); right: 6%; }
-  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 48px); }
-  .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 110px); left: 6%; }
-  .played-area.ppos-5 { bottom: 30%; left: 6%; }
-
-  #bottom-panel {
-    width: 100vw;
-    left: 0;
-    transform: none;
-    border-radius: 18px 18px 0 0;
-    min-height: var(--bottom-panel-h);
-    height: var(--bottom-panel-h);
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-    gap: 8px;
-    background: linear-gradient(to bottom, rgba(7,20,14,0.86), rgba(5,14,10,0.97));
-  }
-
-  #panel-top {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: start;
-    gap: 8px;
-    min-height: 0;
-  }
-
-  #turn-timer {
-    font-size: 16px;
-    padding: 4px 10px;
-    border-radius: 10px;
-  }
-
-  #panel-meta {
-    font-size: 11px;
-    line-height: 1.35;
-    text-align: right;
-    align-self: center;
-  }
-
-  #actions {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    justify-content: stretch;
-  }
-
-  #actions button {
-    min-width: 0;
-    width: 100%;
-    padding: 8px 6px;
-    font-size: 15px;
-    letter-spacing: 1px;
-    border-radius: 10px;
-  }
-
-  #my-hand-wrap {
-    flex: 1 1 auto;
-    min-height: 0;
-    max-height: calc(var(--bottom-panel-h) - 122px);
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding-bottom: 10px;
-    padding-right: 2px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  #my-hand {
-    gap: 9px 8px;
-    padding: 2px 2px 12px;
-    justify-content: flex-start;
-  }
-
-  .card {
-    width: 38px;
-    height: 58px;
-    border-radius: 8px;
-  }
-  .card .rank { font-size: 12px; }
-  .card .suit { font-size: 13px; }
-  .card .joker-text { font-size: 9px; left: 4px; bottom: 4px; }
-
-  .card-group {
-    min-height: 76px;
-  }
-
-  .group-count {
-    bottom: -10px;
-    font-size: 12px;
-    padding: 1px 8px;
-  }
-
-  #strategist-panel {
-    width: calc(100vw - 12px);
-    right: 6px;
-    left: 6px;
-    top: calc(env(safe-area-inset-top) + 48px);
-    max-height: 40vh;
-  }
-
-  #peek-box {
-    width: calc(100vw - 14px);
-    padding: 14px 10px;
-  }
-  #peek-box h3 { font-size: 20px; }
-  .peek-side-title { font-size: 14px; }
-}
-
-/* ============ MINI-GAME SYNC OVERRIDES ============ */
-#lobby {
-  justify-content: flex-start;
-  align-items: stretch;
-  padding: 28px;
-  gap: 12px;
-}
-
-#lobby::before {
-  content: '够级小程序同款体验';
-  display: block;
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: clamp(28px, 4vw, 46px);
-  color: var(--gold);
-  letter-spacing: 8px;
-  text-shadow: 0 0 30px rgba(212,168,67,0.34);
-}
-
-.lobby-title {
-  margin-bottom: 0;
-  font-size: clamp(18px, 2vw, 28px);
-  letter-spacing: 3px;
-  color: rgba(255,255,255,0.92);
-  font-family: 'Noto Serif SC', serif;
-}
-
-.lobby-sub {
-  max-width: 560px;
-  margin-bottom: 6px;
-  color: rgba(255,255,255,0.68);
-}
-
-.lobby-input,
-.lobby-btn,
-#lobby-error,
-.lobby-or {
-  width: 100%;
-  max-width: 100%;
-}
-
-.lobby-main-card {
-  width: 100%;
-  padding: 18px;
-  border-radius: 22px;
-  background: linear-gradient(to bottom, rgba(8,18,12,0.68), rgba(7,16,11,0.82));
-  border: 1px solid rgba(242,209,134,0.16);
-  box-shadow: 0 14px 36px rgba(0,0,0,0.24);
-  position: relative;
-  overflow: hidden;
-}
-
-.lobby-main-card::before,
-.lobby-side::before,
-.waiting-side::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at top right, rgba(242,209,134,0.10), transparent 34%);
-  pointer-events: none;
-}
-
-.field-label {
-  display: block;
-  margin: 0 0 8px 4px;
-  color: rgba(255,255,255,0.72);
-  font-size: 14px;
-}
-
-.readonly-field {
-  width: 100%;
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  padding: 0 18px;
-  border-radius: 16px;
-  color: #ffffff;
-  background: rgba(255,255,255,0.06);
-  border: 2px solid rgba(255,255,255,0.10);
-  font-size: 16px;
-}
-
-.field-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.lobby-actions {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  width: 100%;
-}
-
-.lobby-actions .lobby-btn {
-  width: 100%;
-}
-
-.lobby-mini-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  width: 100%;
-}
-
-.lobby-mini-btn {
-  min-height: 28px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(39,72,52,0.86);
-  color: #dbeed9;
-  font-size: 12px;
-}
-
-.hero-chip-row,
-.side-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hero-chip,
-.side-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.88);
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(6px);
-}
-
-.hero-chip.strong,
-.side-chip.strong {
-  color: #2d2410;
-  background: linear-gradient(to bottom, #f4d789, #d9ab43);
-  border-color: rgba(156,106,24,0.35);
-}
-
-.hero-title {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: clamp(24px, 3vw, 36px);
-  color: var(--gold-light);
-  letter-spacing: 4px;
-  margin-bottom: 8px;
-}
-
-.hero-copy {
-  color: rgba(255,255,255,0.72);
-  font-size: 14px;
-  line-height: 1.8;
-  margin-bottom: 12px;
-}
-
-.lobby-input {
-  height: 52px;
-  border-radius: 16px;
-  text-align: left;
-  padding: 0 18px;
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.14);
-}
-
-.lobby-btn {
-  height: 52px;
-  border-radius: 16px;
-  letter-spacing: 2px;
-  font-size: 20px;
-}
-
-.lobby-shell,
-.waiting-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1.42fr) minmax(240px, 0.78fr);
-  gap: clamp(14px, 2vw, 24px);
-  align-items: stretch;
-  width: min(1180px, 100%);
-}
-
-.lobby-left,
-.waiting-left {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  min-width: 0;
-}
-
-.lobby-side,
-.waiting-side {
-  position: relative;
-  min-width: 0;
-  width: 100%;
-  padding: 18px;
-  border-radius: 18px;
-  background: linear-gradient(to bottom, rgba(8,18,12,0.72), rgba(7,16,11,0.86));
-  border: 1px solid rgba(242,209,134,0.16);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.2);
-}
-
-.side-title {
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 28px;
-  color: var(--gold-light);
-  letter-spacing: 3px;
-  margin-bottom: 12px;
-}
-
-.side-text {
-  color: rgba(255,255,255,0.78);
-  font-size: 14px;
-  line-height: 1.8;
-}
-
-.side-note {
-  margin-top: 10px;
-  color: rgba(255,255,255,0.5);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.side-pill {
-  display: inline-block;
-  margin-top: 10px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(212,168,67,0.14);
-  color: var(--gold-light);
-  font-size: 12px;
-  border: 1px solid rgba(212,168,67,0.18);
-}
-
-.side-list {
-  margin-top: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.side-list-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  color: rgba(255,255,255,0.76);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.side-list-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 6px;
-  background: linear-gradient(to bottom, #f4d789, #d9ab43);
-  flex: 0 0 auto;
-}
-
-#waiting {
-  justify-content: flex-start;
-  align-items: stretch;
-  padding: 24px;
-  gap: 14px;
-}
-
-.room-code {
-  font-size: 18px;
-}
-
-.room-code span {
-  font-size: clamp(24px, 4vw, 38px);
-}
-
-.waiting-hint,
-.player-list,
-#btn-start,
-#wait-hint {
-  width: 100%;
-  max-width: 100%;
-}
-
-.player-list {
-  border-radius: 18px;
-  background: rgba(6,14,9,0.52);
-  border-color: rgba(242,209,134,0.18);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-}
-
-.player-slot {
-  min-height: 46px;
-  border-radius: 14px;
-  margin-bottom: 6px;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.04);
-}
-
-.player-slot:last-child {
-  margin-bottom: 0;
-}
-
-#btn-start {
-  height: 56px;
-  border-radius: 16px;
-  box-shadow: 0 10px 22px rgba(156,106,24,0.22);
-}
-
-#game-title {
-  display: none;
-}
-
-#rankings-panel {
-  left: 16px;
-  right: auto;
-  top: auto;
-  bottom: 20px;
-  min-width: 0;
-  width: clamp(164px, 18vw, 220px);
-  padding: 14px 16px;
-  border-radius: 16px;
-  border-color: rgba(242,209,134,0.16);
-  background: linear-gradient(to bottom, rgba(8,18,12,0.90), rgba(7,16,11,0.95));
-  box-shadow: 0 12px 30px rgba(0,0,0,0.28);
-  z-index: 32;
-}
-
-#rankings-panel h4 {
-  font-size: 18px;
-  text-align: left;
-  margin-bottom: 8px;
-  color: var(--gold-light);
-  border-bottom-color: rgba(242,209,134,0.12);
-}
-
-#rank-list {
-  color: rgba(255,255,255,0.84);
-}
-
-#my-meta {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top-color: rgba(242,209,134,0.14);
-  color: rgba(255,255,255,0.84);
-  font-size: 12px;
-}
-
-#rank-list div,
-#my-meta div {
-  border-radius: 8px;
-}
-
-#bottom-panel {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  min-height: 0;
-  height: auto;
-  transform: none;
-  background: none;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-  display: block;
-  pointer-events: none;
-}
-
-#panel-top,
-#actions,
-#my-hand-wrap {
-  pointer-events: auto;
-}
-
-#panel-top {
-  position: absolute;
-  top: 12px;
-  left: 18px;
-  right: 18px;
-  min-height: 44px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(7,17,11,0.66);
-  border: 1px solid rgba(242,209,134,0.16);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
-}
-
-#turn-timer {
-  font-size: 15px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: rgba(255,255,255,0.88);
-}
-
-#panel-meta {
-  max-width: 70%;
-  color: rgba(255,255,255,0.82);
-  font-size: 12px;
-  text-align: right;
-}
-
-#actions {
-  position: absolute;
-  right: 18px;
-  bottom: 22px;
-  width: clamp(220px, 28vw, 330px);
-  gap: 10px;
-  justify-content: flex-start;
-  align-content: flex-start;
-  padding: 14px;
-  border-radius: 16px;
-  background: linear-gradient(to bottom, rgba(8,18,12,0.88), rgba(7,16,11,0.94));
-  border: 1px solid rgba(242,209,134,0.16);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.28);
-}
-
-#actions button {
-  min-width: calc(50% - 5px);
-  flex: 1 0 calc(50% - 5px);
-  width: auto;
-  padding: 10px 14px;
-  font-size: 16px;
-  letter-spacing: 1px;
-  border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(0,0,0,0.18);
-}
-
-#my-hand-wrap {
-  position: absolute;
-  left: clamp(10px, 19vw, 252px);
-  right: clamp(236px, 31vw, 366px);
-  bottom: 18px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  max-height: none;
-  padding: 16px 14px 24px;
-  border-radius: 18px;
-  background: linear-gradient(to bottom, rgba(8,18,12,0.82), rgba(7,16,11,0.92));
-  border: 1px solid rgba(242,209,134,0.16);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.24);
-  scrollbar-width: thin;
-}
-
-#my-hand {
-  flex-wrap: nowrap;
-  align-items: flex-end;
-  align-content: center;
-  gap: 0;
-  min-height: 148px;
-  width: max-content;
-  justify-content: flex-start;
-  padding: 8px 10px 30px;
-}
-
-.card-group {
-  min-height: 134px;
-  margin-right: 6px;
-}
-
-.group-count {
-  bottom: -10px;
-  background: linear-gradient(to bottom, #f4d789, #d9ab43);
-  color: #1f170a;
-  border-color: rgba(156,106,24,0.34);
-}
-
-.card.locked {
-  opacity: 0.52;
-  filter: grayscale(0.15);
-}
-
-.card {
-  backdrop-filter: blur(2px);
-}
-
-.card:not(.locked):hover {
-  transform: translateY(-6px);
-}
-
-.plabel .name-tag {
-  border-radius: 14px;
-  border-color: rgba(242,209,134,0.14);
-  background: rgba(6,14,9,0.56);
-}
-
-.plabel .name-tag.is-turn {
-  background: rgba(212,168,67,0.22);
-  box-shadow: 0 0 16px rgba(212,168,67,0.24);
-}
-
-#peek-box,
-#strategist-panel,
-#tribute-overlay button,
-#gameover button {
-  box-shadow: 0 18px 42px rgba(0,0,0,0.34);
-}
-
-@media (max-width: 980px) and (orientation: portrait) {
-  .lobby-shell,
-  .waiting-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .lobby-left,
-  .waiting-left {
-    width: 100%;
-  }
-
-  #rankings-panel {
-    width: clamp(156px, 22vw, 186px);
-  }
-
-  #my-hand-wrap {
-    left: clamp(10px, 18vw, 214px);
-    right: clamp(220px, 30vw, 320px);
-  }
-
-  #actions {
-    width: clamp(212px, 30vw, 286px);
-  }
-}
-
-@media (max-height: 560px) and (orientation: landscape) {
-  #lobby,
-  #waiting {
-    padding: 10px 14px;
-    gap: 8px;
-  }
-
-  #lobby::before {
-    font-size: clamp(24px, 4vw, 34px);
-    letter-spacing: 4px;
-  }
-
-  .lobby-title,
-  .lobby-sub {
-    display: none;
-  }
-
-  .lobby-shell,
-  .waiting-shell {
-    grid-template-columns: minmax(0, 1.55fr) minmax(210px, 0.62fr);
-    gap: 10px;
-    align-items: start;
-  }
-
-  .lobby-main-card,
-  .lobby-side,
-  .waiting-side,
-  .player-list {
-    padding: 10px;
-    border-radius: 16px;
-  }
-
-  .hero-chip-row,
-  .side-chip-row {
-    gap: 6px;
-  }
-
-  .hero-chip,
-  .side-chip,
-  .side-pill {
-    min-height: 24px;
-    padding: 4px 8px;
-    font-size: 11px;
-  }
-
-  .hero-title,
-  .side-title {
-    font-size: 18px;
-    letter-spacing: 2px;
-    margin-bottom: 4px;
-  }
-
-  .hero-copy,
-  .side-text,
-  .side-note,
-  .side-list-item,
-  .waiting-hint {
-    font-size: 11px;
-    line-height: 1.48;
-  }
-
-  .field-stack {
-    gap: 6px;
-  }
-
-  .field-label {
-    margin-bottom: 4px;
-    font-size: 12px;
-  }
-
-  .lobby-input,
-  .readonly-field,
-  .lobby-btn,
-  #btn-start {
-    height: 40px;
-    min-height: 40px;
-    font-size: 15px;
-  }
-
-  .lobby-actions {
-    gap: 8px;
-  }
-
-  .lobby-or {
-    font-size: 11px;
-    line-height: 1.4;
-  }
-
-  .lobby-mini-btn {
-    min-height: 24px;
-    font-size: 11px;
-  }
-
-  .room-code {
-    font-size: 15px;
-  }
-
-  .room-code span {
-    font-size: 22px;
-    padding: 4px 12px;
-  }
-
-  .player-slot {
-    min-height: 36px;
-    padding: 7px 9px;
-  }
-
-  .player-slot .pname {
-    font-size: 15px;
-  }
-
-  #panel-top {
-    top: 8px;
-    left: 10px;
-    right: 10px;
-    min-height: 38px;
-    padding: 8px 10px;
-  }
-
-  #turn-timer {
-    font-size: 13px;
-  }
-
-  #panel-meta {
-    max-width: 68%;
-    font-size: 11px;
-  }
-
-  #rankings-panel {
-    width: 144px;
-    left: 10px;
-    bottom: 10px;
-    padding: 10px 12px;
-  }
-
-  #rankings-panel h4 {
-    font-size: 15px;
-  }
-
-  #actions {
-    right: 10px;
-    bottom: 10px;
-    width: clamp(196px, 26vw, 220px);
-    padding: 10px;
-    gap: 8px;
-  }
-
-  #actions button {
-    min-width: calc(50% - 4px);
-    flex-basis: calc(50% - 4px);
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-
-  #my-hand-wrap {
-    left: clamp(140px, 17vw, 172px);
-    right: clamp(198px, 25vw, 230px);
-    bottom: 10px;
-    padding: 10px 8px 16px;
-  }
-
-  #my-hand {
-    min-height: 126px;
-    padding: 6px 8px 24px;
-  }
-
-  .card {
-    width: 58px;
-    height: 82px;
-  }
-
-  .card .rank {
-    font-size: 14px;
-  }
-
-  .card .suit {
-    font-size: 16px;
-  }
-
-  .card-group {
-    min-height: 114px;
-  }
-
-  .group-count {
-    min-width: 40px;
-    min-height: 28px;
-    font-size: 15px;
-  }
-
-  .plabel .name-tag {
-    font-size: 16px;
-    padding: 4px 10px;
-  }
-
-  .plabel .card-info,
-  .plabel .action-text,
-  .plabel .finish-text {
-    font-size: 12px;
-  }
-
-  .plabel.pos-0 { bottom: 90px; }
-  .plabel.pos-1 { bottom: 29%; right: max(6px, env(safe-area-inset-right)); }
-  .plabel.pos-2 { top: calc(env(safe-area-inset-top) + 52px); right: max(6px, env(safe-area-inset-right)); }
-  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 4px); }
-  .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 52px); left: max(6px, env(safe-area-inset-left)); }
-  .plabel.pos-5 { bottom: 29%; left: max(6px, env(safe-area-inset-left)); }
-
-  .played-area {
-    max-width: 36vw;
-    gap: 4px;
-  }
-
-  .played-area .card {
-    width: 40px;
-    height: 58px;
-  }
-
-  .played-area.ppos-0 { bottom: 118px; }
-  .played-area.ppos-1 { bottom: 24%; right: 5%; }
-  .played-area.ppos-2 { top: calc(env(safe-area-inset-top) + 78px); right: 5%; }
-  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 32px); }
-  .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 78px); left: 5%; }
-  .played-area.ppos-5 { bottom: 24%; left: 5%; }
-}
-
-@media (max-width: 780px) {
-  #panel-top {
-    left: 10px;
-    right: 10px;
-    top: 8px;
-    padding: 8px 10px;
-  }
-
-  #turn-timer {
-    font-size: 13px;
-  }
-
-  #panel-meta {
-    max-width: 62%;
-    font-size: 11px;
-  }
-
-  #rankings-panel {
-    width: 154px;
-    left: 10px;
-    bottom: 10px;
-    padding: 12px;
-  }
-
-  #actions {
-    right: 10px;
-    bottom: 10px;
-    width: min(240px, 40vw);
-    padding: 10px;
-    gap: 8px;
-  }
-
-  #actions button {
-    font-size: 14px;
-    min-width: calc(50% - 4px);
-    flex-basis: calc(50% - 4px);
-    padding: 8px 10px;
-  }
-
-  #my-hand-wrap {
-    left: 172px;
-    right: min(258px, 42vw);
-    bottom: 10px;
-    padding: 12px 10px 20px;
-  }
-
-  #my-hand {
-    min-height: 104px;
-  }
-
-  .card-group {
-    min-height: 90px;
-  }
-}
-
-@media (max-width: 640px) {
-  #lobby {
-    padding: 18px;
-    gap: 10px;
-  }
-
-  #lobby::before {
-    font-size: 28px;
-    letter-spacing: 4px;
-  }
-
-  .lobby-title {
-    font-size: 16px;
-  }
-
-  .lobby-sub {
-    font-size: 12px;
-    margin-bottom: 2px;
-  }
-
-  .lobby-main-card {
-    padding: 14px;
-    border-radius: 18px;
-  }
-
-  .hero-title {
-    font-size: 22px;
-    letter-spacing: 2px;
-  }
-
-  .hero-copy {
-    font-size: 12px;
-    line-height: 1.65;
-    margin-bottom: 12px;
-  }
-
-  .field-stack {
-    gap: 10px;
-  }
-
-  .field-label {
-    font-size: 12px;
-  }
-
-  .lobby-input,
-  .readonly-field,
-  .lobby-btn {
-    height: 52px;
-    font-size: 18px;
-  }
-
-  .lobby-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .lobby-mini-actions {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .lobby-or {
-    width: 100%;
-    text-align: left;
-    padding-left: 4px;
-    font-size: 12px;
-  }
-
-  .lobby-side,
-  .waiting-side {
-    padding: 14px;
-  }
-
-  .side-note {
-    font-size: 11px;
-    line-height: 1.55;
-  }
-
-  .side-title {
-    font-size: 22px;
-  }
-
-  .side-list-item {
-    font-size: 12px;
-  }
-}
-
-@media (max-width: 900px) and (orientation: portrait) {
-  #game {
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-
-  #panel-top {
-    left: 10px;
-    right: 10px;
-    top: 8px;
-    padding: 8px 10px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  #panel-meta {
-    max-width: 100%;
-    text-align: left;
-    font-size: 11px;
-  }
-
-  #rankings-panel {
-    display: none;
-  }
-
-  #actions {
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-    width: auto;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 10px;
-    gap: 8px;
-  }
-
-  #actions button {
-    min-width: 0;
-    flex: none;
-    width: 100%;
-    padding: 9px 8px;
-    font-size: 14px;
-  }
-
-  #my-hand-wrap {
-    left: 10px;
-    right: 10px;
-    bottom: 138px;
-    padding: 10px 8px 18px;
-  }
-
-  #my-hand {
-    min-height: 96px;
-  }
-
-  .played-area {
-    max-width: 90vw;
-  }
-}
-
-/* ============ POLISHED TABLE REDESIGN ============ */
-#game {
-  background:
-    radial-gradient(circle at 50% 34%, rgba(255,226,138,0.12), transparent 30%),
-    radial-gradient(circle at 50% 38%, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 84%, #030d07 100%);
-  /* wood bezel + thin gold trim line framing the felt, like a real table rim */
-  box-shadow:
-    inset 0 0 0 14px var(--wood-dark),
-    inset 0 0 0 18px var(--gold),
-    inset 0 0 0 19px var(--wood);
-}
-
-#game::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 16vh;
-  background: linear-gradient(to top, rgba(58,36,20,0.92), rgba(90,56,30,0.5) 45%, rgba(90,56,30,0) 100%);
-  pointer-events: none;
-  z-index: 1;
-}
-
-#player-labels,
-#played-areas {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  pointer-events: none;
-}
-
-.plabel { gap: 6px; }
-
-.plabel .seat-shell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 138px;
-}
-
-.plabel.pos-1 .seat-shell,
-.plabel.pos-2 .seat-shell,
-.plabel.pos-5 .seat-shell {
-  flex-direction: row-reverse;
-}
-
-.plabel .seat-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 3px solid rgba(255,255,255,0.5);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 18px rgba(0,0,0,0.32);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 24px;
-  color: rgba(255,255,255,0.96);
-  text-shadow: 0 2px 4px rgba(0,0,0,0.35);
-  position: relative;
-  overflow: hidden;
-  transition: box-shadow 0.2s, transform 0.2s;
-}
-
-.plabel .seat-avatar::after {
-  /* soft highlight sheen, sits above the flat gradient for a glossier feel */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 32% 24%, rgba(255,255,255,0.42), transparent 46%);
-  pointer-events: none;
-}
-
-.plabel .seat-avatar.is-turn {
-  border-color: var(--gold-light);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 0 0 3px rgba(223,177,92,0.35), 0 0 18px 3px rgba(223,177,92,0.55);
-  transform: scale(1.06);
-}
-
-.plabel .seat-avatar.is-done {
-  filter: grayscale(0.6) brightness(0.72);
-}
-
-.plabel .seat-body {
-  background: rgba(5,15,10,0.72);
-  border: 1px solid rgba(242,209,134,0.14);
-  border-radius: 18px;
-  padding: 8px 12px;
-  min-width: 120px;
-  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
-}
-
-.plabel .seat-body.is-turn {
-  background: rgba(242,209,134,0.12);
-  border-color: rgba(242,209,134,0.42);
-  box-shadow: 0 0 18px rgba(242,209,134,0.18);
-}
-
-.plabel .name-tag {
-  background: none;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  box-shadow: none;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.plabel .name-tag .role-tag {
-  font-size: 11px;
-  color: rgba(255,255,255,0.52);
-}
-
-.plabel .card-info {
-  font-size: 13px;
-  margin-top: 3px;
-}
-
-.plabel .seat-tags {
-  margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.plabel.pos-1 .seat-tags,
-.plabel.pos-2 .seat-tags,
-.plabel.pos-5 .seat-tags {
-  justify-content: flex-end;
-}
-
-.plabel .seat-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 18px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: var(--gold-light);
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-.plabel .action-text,
-.plabel .finish-text {
-  font-size: 12px;
-}
-
-/* --actions-w / --rankings-w feed both the panel widths below AND the
-   hand-tray's left/right offsets, so the hand tray can never slide under
-   them. --panel-clear is derived from the same capped panel height, so
-   the "near" seats (pos-1/pos-5) and their played cards never render
-   behind the action/ranking panels either (this was happening before:
-   two of six players were fully hidden at normal desktop widths). */
-#game {
-  --actions-w: clamp(248px, 28vw, 344px);
-  --rankings-w: clamp(176px, 19vw, 230px);
-  --panel-clear: calc(44vh + 76px);
-}
-
-.plabel.pos-0 { bottom: 150px; left: 50%; transform: translateX(-50%); }
-.plabel.pos-1 { bottom: var(--panel-clear); right: 26px; align-items: flex-end; }
-.plabel.pos-2 { top: 13%; right: 26px; align-items: flex-end; }
-.plabel.pos-3 { top: 18px; left: 50%; transform: translateX(-50%); }
-.plabel.pos-4 { top: 13%; left: 26px; align-items: flex-start; }
-.plabel.pos-5 { bottom: var(--panel-clear); left: 26px; align-items: flex-start; }
-
-#played-areas { z-index: 4; }
-
-.center-stage {
-  position: absolute;
-  left: 50%;
-  top: 21%;
-  transform: translateX(-50%);
-  width: min(52vw, 640px);
-  min-height: 170px;
-  border-radius: 34px;
-  background:
-    radial-gradient(circle at center, rgba(255,215,128,0.10), transparent 44%),
-    linear-gradient(to bottom, rgba(11,43,22,0.74), rgba(7,25,13,0.82));
-  border: 1px solid rgba(242,209,134,0.10);
-  box-shadow: inset 0 0 0 12px rgba(255,255,255,0.02);
-}
-
-.center-stage::before,
-.center-stage::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 22px;
-  bottom: 22px;
-  width: 1px;
-  transform: translateX(-50%);
-  background: rgba(255,255,255,0.08);
-}
-
-.center-stage::after {
-  left: 22px;
-  right: 22px;
-  top: 50%;
-  width: auto;
-  height: 1px;
-  transform: none;
-}
-
-/* Idle state: no player has just played a strong hand — show a faint
-   watermark instead of a permanently-visible empty bordered box. */
-.center-stage.idle {
-  min-height: 0;
-  padding: 4px 0;
-  background: none;
-  border: none;
-  box-shadow: none;
-}
-.center-stage.idle::before,
-.center-stage.idle::after { display: none; }
-
-.event-burst {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: clamp(32px, 4vw, 58px);
-  letter-spacing: 8px;
-  text-shadow: 0 0 26px rgba(255,92,72,0.26);
-}
-
-.event-burst.burn { color: #ffd9cf; }
-
-.event-burst.gold {
-  color: var(--gold-light);
-  text-shadow: 0 0 22px rgba(240,208,128,0.22);
-}
-
-.event-burst.idle {
-  position: static;
-  transform: none;
-  display: block;
-  text-align: center;
-  font-family: 'Ma Shan Zheng', cursive;
-  font-size: 16px;
-  letter-spacing: 14px;
-  color: rgba(255,240,210,0.14);
-  text-shadow: none;
-}
-
-.event-sub {
-  position: absolute;
-  left: 50%;
-  top: calc(50% + 42px);
-  transform: translateX(-50%);
-  color: rgba(255,255,255,0.72);
-  font-size: 13px;
-  letter-spacing: 1px;
-  white-space: nowrap;
-}
-
-.played-area {
-  gap: 8px;
-  max-width: min(35vw, 320px);
-}
-
-.played-area .played-stack {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
-.played-area .card {
-  width: 82px;
-  height: 58px;
-  border-radius: 10px;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  justify-items: center;
-  padding: 0 8px;
-}
-
-.played-area .card .rank { font-size: 16px; }
-.played-area .card .suit { font-size: 18px; margin-top: 0; }
-.played-area .card .joker-text { left: 6px; bottom: 4px; }
-
-.played-area .play-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 24px;
-  padding: 2px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.84);
-}
-
-.played-area .play-tag.gouji {
-  color: var(--gold-light);
-  background: rgba(212,168,67,0.18);
-}
-
-.played-area .play-tag.kaidian,
-.played-area .play-tag.normal4 {
-  color: #d8f4ff;
-  background: rgba(72,160,220,0.18);
-}
-
-.played-area.ppos-0 { bottom: 180px; left: 50%; transform: translateX(-50%); }
-.played-area.ppos-1 { bottom: var(--panel-clear); right: 10%; justify-content: flex-end; }
-.played-area.ppos-2 { top: 21%; right: 10%; justify-content: flex-end; }
-.played-area.ppos-3 { top: 14%; left: 50%; transform: translateX(-50%); }
-.played-area.ppos-4 { top: 21%; left: 10%; justify-content: flex-start; }
-.played-area.ppos-5 { bottom: var(--panel-clear); left: 10%; justify-content: flex-start; }
-
-#rankings-panel {
-  bottom: 26px;
-  left: 18px;
-  width: var(--rankings-w);
-  max-height: 44vh;
-  overflow-y: auto;
-  padding: 16px 18px;
-  border-radius: 22px;
-  background: var(--panel-bg);
-  border-color: var(--panel-border);
-}
-
-#rankings-panel h4 {
-  font-size: 20px;
-  letter-spacing: 3px;
-}
-
-#rank-list .rank-row,
-#my-meta .meta-row {
-  padding: 6px 8px;
-  background: rgba(255,255,255,0.03);
-  margin-bottom: 4px;
-}
-
-#bottom-panel { inset: auto 0 0 0; height: 0; }
-
-#panel-top {
-  top: 14px;
-  left: 18px;
-  right: 18px;
-  min-height: 54px;
-  border-radius: 20px;
-  background: var(--panel-bg);
-  border-color: var(--panel-border);
-  box-shadow: 0 14px 30px rgba(0,0,0,0.24);
-}
-
-#turn-timer { font-size: 18px; }
-
-#panel-meta {
-  max-width: 52%;
-  line-height: 1.5;
-}
-
-#actions {
-  right: 18px;
-  bottom: 26px;
-  width: var(--actions-w);
-  max-height: 44vh;
-  overflow-y: auto;
-  padding: 16px;
-  border-radius: 22px;
-  background: var(--panel-bg);
-  border-color: var(--panel-border);
-}
-
-#actions button {
-  min-width: calc(50% - 5px);
-  min-height: 52px;
-  font-size: 18px;
-  letter-spacing: 2px;
-  border-radius: 14px;
-}
-
-#my-hand-wrap {
-  left: calc(18px + var(--rankings-w) + 20px);
-  right: calc(18px + var(--actions-w) + 20px);
-  bottom: 20px;
-  padding: 18px 16px 28px;
-  border-radius: 24px;
-  background: var(--panel-bg);
-  border-color: var(--panel-border);
-  box-shadow: 0 16px 34px rgba(0,0,0,0.24);
-}
-
-#my-hand {
-  min-height: 162px;
-  padding: 8px 10px 34px;
-}
-
-.card-group { min-height: 150px; }
-.card { width: 74px; height: 108px; border-radius: 12px; }
-.card .rank { font-size: 28px; }
-.card .suit { font-size: 20px; }
-.card .pip { font-size: 3.4em; }
-.card .idx { font-size: 11px; }
-.card .idx b { font-size: 12px; }
-.card .idx-tl { top: 7px; left: 7px; }
-.card .idx-br { bottom: 7px; right: 7px; }
-.group-count { min-width: 52px; min-height: 32px; font-size: 18px; bottom: -13px; }
-
-@media (max-width: 980px) {
-  #game {
-    --actions-w: clamp(214px, 26vw, 254px);
-    --rankings-w: 156px;
-    --panel-clear: calc(40vh + 60px);
-  }
-  .center-stage { width: min(60vw, 520px); min-height: 148px; top: 23%; }
-  #panel-meta { max-width: 60%; font-size: 11px; }
-  #rankings-panel { width: var(--rankings-w); max-height: 40vh; padding: 12px 14px; }
-  #actions { width: var(--actions-w); max-height: 40vh; padding: 12px; }
-  #actions button { min-height: 46px; font-size: 15px; }
-  #my-hand-wrap { left: calc(18px + var(--rankings-w) + 16px); right: calc(18px + var(--actions-w) + 16px); padding: 12px 10px 22px; }
-  .card { width: 60px; height: 88px; }
-  .played-area .card { width: 70px; height: 50px; }
-  .plabel .seat-avatar { width: 44px; height: 44px; font-size: 20px; }
-  .plabel .name-tag { font-size: 15px; }
-}
-
-@media (max-width: 780px) {
-  #game {
-    --actions-w: 208px;
-    --rankings-w: 144px;
-    --panel-clear: calc(38vh + 54px);
-  }
-  .center-stage { top: 20%; width: 66vw; min-height: 126px; }
-  .event-burst { font-size: 30px; letter-spacing: 4px; }
-  .event-sub { top: calc(50% + 28px); font-size: 11px; }
-  #panel-top { left: 10px; right: 10px; top: 8px; min-height: 44px; padding: 8px 10px; }
-  #turn-timer { font-size: 14px; }
-  #panel-meta { max-width: 58%; font-size: 10px; }
-  #rankings-panel { left: 10px; bottom: 10px; width: var(--rankings-w); max-height: 38vh; padding: 10px 12px; }
-  #rankings-panel h4 { font-size: 16px; }
-  #actions { right: 10px; bottom: 10px; width: var(--actions-w); max-height: 38vh; padding: 10px; gap: 8px; }
-  #actions button { min-height: 42px; font-size: 14px; }
-  #my-hand-wrap { left: calc(10px + var(--rankings-w) + 14px); right: calc(10px + var(--actions-w) + 14px); bottom: 10px; }
-  .card { width: 54px; height: 80px; }
-  .played-area .card { width: 58px; height: 44px; }
-  .plabel.pos-1, .plabel.pos-2 { right: 8px; }
-  .plabel.pos-4, .plabel.pos-5 { left: 8px; }
-}
-
-/* ============================================================
-   FINAL MOBILE FIX — authoritative, placed last on purpose so it
-   wins the cascade over every earlier (and now stale) mobile rule
-   above. Fixes: fluid card sizing, played-card zone placement,
-   and a real stacked layout for portrait phones (previously the
-   hand tray could shrink to ~30px wide on narrow phones).
-   ============================================================ */
-
-/* ---- Any phone/small tablet, either orientation ---- */
-@media (max-width: 900px) {
-  .card {
-    width: clamp(38px, 11vw, 58px);
-    height: clamp(56px, 16vw, 84px);
-    border-radius: 8px;
-  }
-  .card .rank { font-size: clamp(13px, 3.6vw, 19px); }
-  .card .suit { font-size: clamp(11px, 2.8vw, 14px); margin-top: 2px; }
-  .card .joker-text { font-size: 8px; left: 3px; bottom: 3px; padding: 1px 4px; }
-
-  .card-group { min-height: clamp(70px, 20vw, 100px); }
-  .group-count { min-width: 32px; min-height: 22px; font-size: 12px; bottom: -9px; padding: 1px 8px; }
-
-  .played-area { gap: 3px; }
-  .played-area .played-stack { gap: 3px; }
-  .played-area .card {
-    width: clamp(30px, 9vw, 48px);
-    height: clamp(22px, 6.4vw, 34px);
-    border-radius: 6px;
-    padding: 0 4px;
-  }
-  .played-area .card .rank { font-size: clamp(9px, 2.6vw, 12px); }
-  .played-area .card .suit { font-size: clamp(10px, 2.8vw, 13px); }
-  .played-area .card .joker-text { font-size: 6px; left: 2px; bottom: 2px; }
-  .played-area .play-tag { min-height: 18px; padding: 1px 7px; font-size: 10px; }
-
-  .plabel .seat-avatar { width: clamp(26px, 8vw, 40px); height: clamp(26px, 8vw, 40px); border-width: 2px; font-size: clamp(13px, 4vw, 19px); }
-  .plabel .seat-shell { min-width: 0; gap: 6px; }
-  .plabel .seat-body { min-width: 0; padding: 5px 9px; border-radius: 12px; }
-  .plabel .name-tag { font-size: clamp(11px, 3.2vw, 15px); gap: 4px; }
-  .plabel .name-tag .role-tag { font-size: 9px; }
-  .plabel .card-info { font-size: 10px; }
-  .plabel .action-text, .plabel .finish-text { font-size: 10px; }
-  .plabel .seat-pill { font-size: 9px; min-height: 15px; padding: 0 5px; }
-
-  .event-burst { font-size: clamp(20px, 6vw, 32px); letter-spacing: 3px; }
-  .event-sub { font-size: 10px; top: calc(50% + 24px); }
-}
-
-/* ---- Portrait phones: switch to a stacked layout ---- */
-@media (max-width: 900px) and (orientation: portrait) {
-  #game {
-    --hand-bottom: calc(env(safe-area-inset-bottom) + 108px);
-    --hand-max-h: 32vh;
-    --near-row: calc(var(--hand-bottom) + var(--hand-max-h) + 8px);
-  }
-
-  #rotate-tip { display: block; }
-  #rankings-panel { display: none; }
-
-  /* Top status bar, pushed below the rotate-tip pill */
-  #panel-top {
-    position: absolute;
-    top: calc(env(safe-area-inset-top) + 38px);
-    left: 8px;
-    right: 8px;
-    min-height: 0;
-    padding: 6px 10px;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    border-radius: 12px;
-  }
-  #turn-timer { font-size: 12px; flex-shrink: 0; }
-  #panel-meta { max-width: none; flex: 1; text-align: right; font-size: 10px; line-height: 1.35; }
-
-  /* My own label is redundant with the hand tray right below it */
-  .plabel.pos-0 { display: none; }
-
-  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 92px); }
-  .plabel.pos-2, .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 92px); }
-  .plabel.pos-1, .plabel.pos-2 { right: 4px; }
-  .plabel.pos-4, .plabel.pos-5 { left: 4px; }
-  .plabel.pos-1, .plabel.pos-5 { bottom: var(--near-row); }
-
-  .played-area.ppos-0, .played-area.ppos-3 { max-width: 58vw; }
-  .played-area.ppos-1, .played-area.ppos-2,
-  .played-area.ppos-4, .played-area.ppos-5 { max-width: 38vw; }
-
-  .played-area.ppos-0 { bottom: var(--near-row); }
-  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 158px); }
-  .played-area.ppos-2, .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 172px); }
-  .played-area.ppos-1, .played-area.ppos-2 { right: 4%; }
-  .played-area.ppos-4, .played-area.ppos-5 { left: 4%; }
-  .played-area.ppos-1, .played-area.ppos-5 { bottom: var(--near-row); }
-
-  .center-stage {
-    top: 30%;
-    width: 68vw;
-    min-height: 70px;
-  }
-  .event-sub { top: calc(50% + 20px); }
-
-  /* Bottom action grid, full width */
-  #actions {
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    top: auto;
-    bottom: calc(env(safe-area-inset-bottom) + 6px);
-    width: auto;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-    padding: 8px;
-    border-radius: 14px;
-  }
-  #actions button {
-    min-width: 0;
-    flex: none;
-    width: 100%;
-    min-height: 38px;
-    padding: 8px 4px;
-    font-size: 12px;
-    letter-spacing: 0;
-    border-radius: 9px;
-  }
-
-  /* Hand tray: full width row that scrolls vertically if needed */
-  #my-hand-wrap {
-    position: absolute;
-    left: 4px;
-    right: 4px;
-    top: auto;
-    bottom: var(--hand-bottom);
-    max-height: var(--hand-max-h);
-    padding: 8px 6px 12px;
-    border-radius: 14px;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-  #my-hand {
-    flex-wrap: wrap;
-    width: 100%;
-    justify-content: center;
-    align-items: flex-end;
-    gap: 8px 6px;
-    min-height: 0;
-    padding: 2px;
-  }
-}
-
-/* ---- Short landscape phones (rotated) ---- */
-@media (orientation: landscape) and (max-height: 480px) {
-  #rankings-panel { display: none; }
-
-  #panel-top { top: 6px; left: 8px; right: 8px; padding: 6px 10px; }
-  #turn-timer { font-size: 12px; }
-  #panel-meta { font-size: 10px; max-width: 58%; }
-
-  #actions {
-    right: 8px;
-    bottom: 6px;
-    width: clamp(170px, 24vw, 210px);
-    padding: 8px;
-    gap: 6px;
-  }
-  #actions button {
-    min-width: calc(50% - 4px);
-    flex-basis: calc(50% - 4px);
-    min-height: 30px;
-    padding: 6px 8px;
-    font-size: 11px;
-  }
-
-  #my-hand-wrap {
-    left: clamp(120px, 16vw, 160px);
-    right: clamp(180px, 26vw, 220px);
-    bottom: 6px;
-    max-height: none;
-    padding: 6px 8px 12px;
-  }
-  #my-hand { flex-wrap: nowrap; min-height: 0; }
-
-  .card { width: clamp(40px, 9vh, 56px); height: clamp(58px, 13vh, 80px); }
-  .played-area .card { width: clamp(34px, 7vh, 46px); height: clamp(24px, 5vh, 34px); }
-
-  .plabel.pos-0 { bottom: 76px; }
-  .plabel.pos-1, .plabel.pos-5 { bottom: 26%; }
-  .plabel.pos-2, .plabel.pos-4 { top: calc(env(safe-area-inset-top) + 44px); }
-  .plabel.pos-3 { top: calc(env(safe-area-inset-top) + 4px); }
-
-  .played-area.ppos-0 { bottom: 92px; }
-  .played-area.ppos-1, .played-area.ppos-5 { bottom: 22%; }
-  .played-area.ppos-2, .played-area.ppos-4 { top: calc(env(safe-area-inset-top) + 68px); }
-  .played-area.ppos-3 { top: calc(env(safe-area-inset-top) + 28px); }
-}
-
-</style>
+<link rel="stylesheet" href="/table.css?v=20261009">
 </head>
 <body>
 <div id="rotate-tip">建议横屏体验更舒服</div>
@@ -2751,7 +18,7 @@ button:disabled { opacity: 0.35; filter: grayscale(0.3); cursor: default !import
     <div class="lobby-left">
       <div class="lobby-main-card">
         <div class="hero-chip-row" style="margin-bottom:12px">
-          <span class="hero-chip strong">微信同款大厅</span>
+          <span class="hero-chip strong">山东够级</span>
           <span class="hero-chip">六人联机</span>
           <span class="hero-chip">横屏牌桌</span>
         </div>
@@ -2781,20 +48,20 @@ button:disabled { opacity: 0.35; filter: grayscale(0.3); cursor: default !import
         <button class="lobby-mini-btn" onclick="startDemoWaiting()">预览等待房</button>
         <button class="lobby-mini-btn" onclick="startDemoGame()">直接预览牌桌</button>
       </div>
-      <div class="lobby-or">服务器和迁移说明已下移，先把首屏留给进房操作</div>
+      <div class="lobby-or">朋友打开同一网址，凭房间号即可入座。</div>
       <div id="lobby-error"></div>
     </div>
 
     <div class="lobby-side">
-      <div class="side-title">当前同步状态</div>
+      <div class="side-title">一桌六人，三人一队</div>
       <div class="side-chip-row" style="margin-bottom:10px">
-        <span class="side-chip strong">对战主流程已接通</span>
-        <span class="side-chip">等待房已同步</span>
-        <span class="side-chip">牌桌持续优化中</span>
+        <span class="side-chip strong">实时对战</span>
+        <span class="side-chip">熟人组局</span>
+        <span class="side-chip">随时开桌</span>
       </div>
       <div class="side-text">
-        这个网页端已经按微信小游戏当前版本继续同步。
-        现在大厅、等待房、牌桌、选牌、验牌、军师、结算都在往同一套体验收。
+        红蓝两队交叉入座，对头相隔三个座位。
+        发牌、开点、烧牌、进贡，和朋友一起打一场够级。
       </div>
       <div style="margin-top:12px">
         <span class="field-label" style="margin-left:0">服务器</span>
@@ -2804,11 +71,10 @@ button:disabled { opacity: 0.35; filter: grayscale(0.3); cursor: default !import
       <div class="side-list">
         <div class="side-list-item"><span class="side-list-dot"></span><span>创建房间后，把房间号发给朋友即可一起进入等待房。</span></div>
         <div class="side-list-item"><span class="side-list-dot"></span><span>加入房间只需要昵称和 4 位房间号，不需要额外注册。</span></div>
-        <div class="side-list-item"><span class="side-list-dot"></span><span>网页端和小游戏端共用一套联机后端，房间与牌局状态互通。</span></div>
+        <div class="side-list-item"><span class="side-list-dot"></span><span>人不够时可创建人机房，先熟悉出牌和技能操作。</span></div>
       </div>
       <div class="side-note">
-        如果你把这份 `gouji-online` 部署到公网，朋友打开这个网页就能直接联机。<br>
-        网页版和小游戏版现在共用同一套房间与对战后端。
+        手机横屏、竖屏和电脑均可玩。入座后点击「试听」，确认声音已开启。
       </div>
     </div>
   </div>
@@ -2843,10 +109,27 @@ button:disabled { opacity: 0.35; filter: grayscale(0.3); cursor: default !import
 
 <!-- ============ GAME TABLE ============ -->
 <div id="game">
-  <div id="game-title" onclick="onTitleClick()">够级</div>
-
-  <div id="player-labels"></div>
-  <div id="played-areas"></div>
+  <header class="table-toolbar">
+    <div class="table-brand">
+      <span class="brand-mark" id="game-title" onclick="onTitleClick()">够级</span>
+      <span class="brand-caption">山东 · 六人牌局</span>
+      <span class="room-pill" id="table-room">六人对战</span>
+    </div>
+    <div class="toolbar-tools">
+      <div class="sound-control">
+        <button class="toolbar-button" id="btn-sound" onclick="toggleSound()" aria-pressed="true">🔊 音效</button>
+        <input class="sound-volume" id="sound-volume" type="range" min="0" max="100" value="65" oninput="setSoundVolume(this.value)" aria-label="音效音量">
+      </div>
+      <button class="toolbar-button" id="btn-test-sound" onclick="testSound()">试听</button>
+      <span id="sound-note">点击试听开启声音</span>
+      <button class="toolbar-button" id="btn-rankings" onclick="toggleRankings()" aria-expanded="false" aria-controls="rankings-panel">排名</button>
+      <button class="toolbar-button" id="btn-fullscreen" onclick="toggleFullscreen()">全屏</button>
+    </div>
+  </header>
+  <main id="arena" aria-label="六人牌桌">
+    <div id="player-labels"></div>
+    <div id="played-areas"></div>
+  </main>
 
   <div id="rankings-panel">
     <h4>排名</h4>
@@ -2879,7 +162,8 @@ button:disabled { opacity: 0.35; filter: grayscale(0.3); cursor: default !import
       <button class="btn-no" id="btn-clear" onclick="clearSelection()">清 空</button>
     </div>
 
-    <div id="my-hand-wrap">
+    <div class="hand-heading"><strong>我的手牌 <span class="hand-count" id="hand-card-count"></span><span class="hand-selection" id="selected-count"></span></strong><span class="hand-tip" id="hand-tip"></span></div>
+    <div id="my-hand-wrap" aria-label="我的手牌">
       <div id="my-hand"></div>
     </div>
   </div>
@@ -2941,99 +225,145 @@ let selectedCards = [];
 let currentState = null;
 let dragSelectState = { active: false, add: true, seen: new Set(), timer: null };
 let countdownTimer = null;
+let lastTurnPlayer = -1;
+let audioCtx = null;
+let audioUnlocked = false;
 
 // Cheat
 let _cClicks = 0, _cTimer = null;
 
-function unlockAudio() {
-  audioUnlocked = true;
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  } catch (_) {}
+let soundMuted = false;
+let soundVolume = 0.65;
+let audioMaster = null;
+let lastSelectSoundAt = 0;
+let lastTimerWarning = '';
+try {
+  soundMuted = localStorage.getItem('gouji.sound.muted') === 'true';
+  const savedVolume = localStorage.getItem('gouji.sound.volume');
+  if (savedVolume !== null && Number.isFinite(Number(savedVolume))) soundVolume = Math.max(0, Math.min(1, Number(savedVolume)));
+} catch (_) {}
+
+function syncSoundControls() {
+  const button = document.getElementById('btn-sound');
+  const muted = soundMuted || soundVolume === 0;
+  button.textContent = muted ? '🔇 静音' : '🔊 音效';
+  button.setAttribute('aria-pressed', String(!muted));
+  button.setAttribute('aria-label', muted ? '开启音效' : '关闭音效');
+  document.getElementById('sound-volume').value = String(Math.round(soundVolume * 100));
+  const note = document.getElementById('sound-note');
+  note.textContent = muted ? '声音已关闭' : audioUnlocked ? '音效已开启' : '点击试听开启声音';
+  if (audioMaster) audioMaster.gain.value = muted ? 0 : soundVolume;
 }
-['click', 'touchend', 'keydown'].forEach(evt => {
-  window.addEventListener(evt, unlockAudio, { passive: true, once: true });
+
+function unlockAudio() {
+  try {
+    const AudioClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioClass) return null;
+    if (!audioCtx || audioCtx.state === 'closed') {
+      audioCtx = new AudioClass();
+      audioMaster = audioCtx.createGain();
+      audioMaster.gain.value = soundMuted ? 0 : soundVolume;
+      audioMaster.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
+      audioCtx.resume().then(() => { audioUnlocked = audioCtx.state === 'running'; syncSoundControls(); }).catch(() => {});
+    }
+    audioUnlocked = audioCtx.state === 'running';
+    syncSoundControls();
+    return audioCtx;
+  } catch (_) { return null; }
+}
+// Keep the listeners: a phone may suspend audio again after a lock screen or tab switch.
+['pointerdown', 'touchstart', 'keydown'].forEach(event => {
+  window.addEventListener(event, unlockAudio, {passive:true, capture:true});
 });
 
-function playToneSequence(tones, gainValue = 0.035) {
+function toggleSound() {
+  soundMuted = !soundMuted;
+  if (!soundMuted && soundVolume === 0) soundVolume = 0.65;
+  persistSound();
+  unlockAudio();
+  syncSoundControls();
+  if (!soundMuted) playSecretSound();
+}
+
+function setSoundVolume(value) {
+  soundVolume = Math.max(0, Math.min(1, Number(value) / 100));
+  soundMuted = soundVolume === 0;
+  persistSound();
+  unlockAudio();
+  syncSoundControls();
+}
+
+function persistSound() {
   try {
-    if (!audioUnlocked) return;
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const now = audioCtx.currentTime;
-    tones.forEach((tone, idx) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = tone.type || 'sine';
-      osc.frequency.value = tone.freq;
-      gain.gain.setValueAtTime(0.0001, now + tone.at);
-      gain.gain.exponentialRampToValueAtTime(gainValue, now + tone.at + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start(now + tone.at);
-      osc.stop(now + tone.at + tone.dur + 0.02);
+    localStorage.setItem('gouji.sound.muted', String(soundMuted));
+    localStorage.setItem('gouji.sound.volume', String(soundVolume));
+  } catch (_) {}
+}
+
+function testSound() {
+  soundMuted = false;
+  if (soundVolume === 0) soundVolume = 0.65;
+  persistSound();
+  unlockAudio();
+  playGoujiSound();
+}
+
+function playToneSequence(tones, gainValue = 0.14) {
+  if (soundMuted || soundVolume === 0) return;
+  const ctx = audioCtx;
+  if (!ctx || ctx.state !== 'running') {
+    if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+      ctx.resume().then(() => { if (ctx.state === 'running') playToneSequence(tones, gainValue); }).catch(() => {});
+    }
+    return;
+  }
+  try {
+    const start = ctx.currentTime + 0.012;
+    tones.forEach(tone => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = tone.type || 'triangle';
+      osc.frequency.setValueAtTime(tone.freq, start + tone.at);
+      if (tone.endFreq) osc.frequency.exponentialRampToValueAtTime(tone.endFreq, start + tone.at + tone.dur);
+      gain.gain.setValueAtTime(0.0001, start + tone.at);
+      gain.gain.exponentialRampToValueAtTime(gainValue, start + tone.at + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.at + tone.dur);
+      osc.connect(gain);
+      gain.connect(audioMaster);
+      osc.start(start + tone.at);
+      osc.stop(start + tone.at + tone.dur + 0.02);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
     });
   } catch (_) {}
 }
 
-function playSecretSound() {
-  playToneSequence([
-    { freq: 880, at: 0.00, dur: 0.08, type: 'triangle' },
-    { freq: 1174, at: 0.10, dur: 0.08, type: 'triangle' },
-  ], 0.02);
+function playSelectSound() {
+  const now = Date.now();
+  if (now - lastSelectSoundAt < 45) return;
+  lastSelectSoundAt = now;
+  playToneSequence([{freq:960,endFreq:560,at:0,dur:0.055}],0.10);
 }
+function playSecretSound() { playToneSequence([{freq:660,at:0,dur:0.13},{freq:990,at:0.12,dur:0.20}],0.15); }
+function playThrowSkillSound() { playToneSequence([{freq:700,endFreq:180,at:0,dur:0.18},{freq:330,endFreq:130,at:0.08,dur:0.15}],0.12); }
+function playCaughtSound() { playToneSequence([{freq:490,at:0,dur:0.13},{freq:245,at:0.15,dur:0.24}],0.13); }
+function playCardSound() { playToneSequence([{freq:650,endFreq:130,at:0,dur:0.08},{freq:180,endFreq:90,at:0.025,dur:0.10}],0.20); }
+function playPassSound() { playToneSequence([{freq:440,endFreq:300,at:0,dur:0.12}],0.10); }
+function playGoujiSound() { playToneSequence([{freq:392,at:0,dur:0.16},{freq:523,at:0.12,dur:0.18},{freq:784,at:0.25,dur:0.28}],0.18); }
+function playBurnSound() { playToneSequence([{freq:180,endFreq:480,at:0,dur:0.16,type:'sawtooth'},{freq:660,at:0.14,dur:0.16},{freq:880,at:0.27,dur:0.27}],0.13); }
+function playJieShaoSound() { playToneSequence([{freq:880,at:0,dur:0.14},{freq:660,at:0.13,dur:0.20},{freq:523,at:0.26,dur:0.24}],0.16); }
+function playKaiDianSound() { playToneSequence([{freq:523,at:0,dur:0.17},{freq:659,at:0.14,dur:0.18},{freq:1046,at:0.28,dur:0.35}],0.18); }
+function speakTurnPrompt() { playToneSequence([{freq:740,at:0,dur:0.15},{freq:988,at:0.17,dur:0.22}],0.15); }
+function playLowTimeSound() { playToneSequence([{freq:880,at:0,dur:0.075}],0.10); }
+function playEndSound(won) { playToneSequence(won ? [{freq:523,at:0,dur:0.2},{freq:659,at:0.17,dur:0.2},{freq:784,at:0.34,dur:0.2},{freq:1046,at:0.51,dur:0.4}] : [{freq:392,at:0,dur:0.2},{freq:330,at:0.2,dur:0.2},{freq:262,at:0.4,dur:0.4}],0.16); }
 
-function playThrowSkillSound() {
-  playToneSequence([
-    { freq: 660, at: 0.00, dur: 0.05, type: 'triangle' },
-    { freq: 740, at: 0.07, dur: 0.05, type: 'triangle' },
-  ], 0.012);
+function playSoundCue(type) {
+  const sounds = {caught:playCaughtSound,gouji:playGoujiSound,burn:playBurnSound,jieshao:playJieShaoSound,kaidian:playKaiDianSound,play:playCardSound,pass:playPassSound,throw2:playThrowSkillSound,secret:playSecretSound};
+  (sounds[type] || playSecretSound)();
 }
+syncSoundControls();
 
-function playCaughtSound() {
-  playToneSequence([
-    { freq: 520, at: 0.00, dur: 0.09, type: 'square' },
-    { freq: 390, at: 0.11, dur: 0.11, type: 'square' },
-  ], 0.03);
-}
-
-function playCardSound() {
-  playToneSequence([
-    { freq: 180, at: 0.00, dur: 0.018, type: 'square' },
-    { freq: 120, at: 0.018, dur: 0.040, type: 'triangle' },
-  ], 0.035);
-}
-
-function playGoujiSound() {
-  playToneSequence([
-    { freq: 392, at: 0.00, dur: 0.05, type: 'square' },
-    { freq: 523, at: 0.06, dur: 0.06, type: 'square' },
-    { freq: 784, at: 0.14, dur: 0.09, type: 'triangle' },
-    { freq: 1046, at: 0.24, dur: 0.12, type: 'triangle' },
-  ], 0.04);
-}
-
-function playBurnSound() {
-  playToneSequence([
-    { freq: 260, at: 0.00, dur: 0.06, type: 'sawtooth' },
-    { freq: 330, at: 0.06, dur: 0.06, type: 'sawtooth' },
-    { freq: 660, at: 0.14, dur: 0.12, type: 'square' },
-  ], 0.04);
-}
-
-function playJieShaoSound() {
-  playToneSequence([
-    { freq: 740, at: 0.00, dur: 0.07, type: 'triangle' },
-    { freq: 540, at: 0.09, dur: 0.08, type: 'triangle' },
-  ], 0.025);
-}
-
-function speakTurnPrompt() {
-  playToneSequence([
-    { freq: 740, at: 0.00, dur: 0.05, type: 'triangle' },
-    { freq: 880, at: 0.06, dur: 0.05, type: 'triangle' },
-  ], 0.016);
-}
 
 function onTitleClick() {
   if (!isHost) return;
@@ -3081,6 +411,7 @@ function connect() {
   });
 
   socket.on('back_to_lobby', (data) => {
+    lastTurnPlayer = -1;
     document.getElementById('gameover').classList.remove('show');
     const goBtn = document.getElementById('go-btn');
     if (goBtn) {
@@ -3095,6 +426,7 @@ function connect() {
   });
 
   socket.on('error_msg', (data) => {
+    playCaughtSound();
     toast(data.msg);
   });
 
@@ -3102,16 +434,7 @@ function connect() {
     if (data && data.msg) toast(data.msg);
   });
 
-  socket.on('sound_cue', (data) => {
-    const t = data?.type || 'secret';
-    if (t === 'caught') playCaughtSound();
-    else if (t === 'gouji') playGoujiSound();
-    else if (t === 'burn') playBurnSound();
-    else if (t === 'jieshao') playJieShaoSound();
-    else if (t === 'play') playCardSound();
-    else if (t === 'throw2') playThrowSkillSound();
-    else playSecretSound();
-  });
+  socket.on('sound_cue', (data) => playSoundCue(data?.type || 'secret'));
 
   socket.on('peek_result', (data) => {
     showPeekOverlay(data);
@@ -3265,6 +588,7 @@ function startDemoGame() {
   currentState = state;
   selectedCards = [];
   showGame(state);
+  toast("牌桌预览 · 真实对战请创建房间");
 }
 
 function renderPlayerList(players) {
@@ -3302,13 +626,35 @@ function renderPlayerList(players) {
   }
 }
 
+function renderHandStatus(state) {
+  document.getElementById('hand-card-count').textContent = `${state.myHand?.length || 0} 张`;
+  document.getElementById('selected-count').textContent = selectedCards.length ? `已选 ${selectedCards.length} 张` : '';
+  document.getElementById('table-room').textContent = myRoom ? `房间 ${myRoom}` : '六人对战';
+  document.getElementById('hand-tip').textContent = window.matchMedia('(max-width: 600px), (max-height: 600px)').matches
+    ? '左右滑动看牌 · 点数量整组选牌'
+    : '点数量整组选牌 · Enter 出牌 · Esc 清空';
+}
+
+function toggleRankings() {
+  const panel = document.getElementById('rankings-panel');
+  const opened = panel.classList.toggle('is-open');
+  document.getElementById('btn-rankings').setAttribute('aria-expanded', String(opened));
+}
+
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.getElementById('game').requestFullscreen();
+  } catch (_) { toast('当前浏览器不支持全屏'); }
+}
+
 // ============ GAME RENDERING ============
 let _lastShownRound = 0;
 
 function showGame(state) {
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('waiting').style.display = 'none';
-  document.getElementById('game').style.display = 'block';
+  document.getElementById('game').style.display = 'grid';
   document.getElementById('gameover').classList.remove('show');
   const goBtn = document.getElementById('go-btn');
   if (goBtn) {
@@ -3316,6 +662,7 @@ function showGame(state) {
     goBtn.textContent = '再 来 一 局';
   }
 
+  renderHandStatus(state);
   renderLabels(state);
   renderPlayedAreas(state);
   renderMyHand(state);
@@ -3442,7 +789,7 @@ function renderLabels(state) {
     let statusHtml = '';
     if (state.finished[abs]) {
       const ri = state.rankings.indexOf(abs);
-      statusHtml = `<div class="finish-text">${RANK_LABELS[ri+1]}</div>`;
+      statusHtml = `<div class="finish-text">${ri >= 0 ? RANK_LABELS[ri+1] : '烧失败'}</div>`;
     } else if (rel !== 0) {
       statusHtml = `<div class="card-info">${state.handCounts[abs]}张 ${dianHtml}</div>`;
     } else {
@@ -3491,25 +838,30 @@ function renderLabels(state) {
 function renderPlayedAreas(state) {
   const container = document.getElementById('played-areas');
   const stage = getStageEventClient(state);
-  let html = `<div class="center-stage ${stage.kind}">
-    <div class="event-burst ${stage.kind}">${stage.label}</div>
-    ${stage.sub ? `<div class="event-sub">${stage.sub}</div>` : ''}
-  </div>`;
+  let html = `<div class="center-stage ${stage.kind}"><div class="event-burst ${stage.kind}">${stage.label}</div>${stage.sub ? `<div class="event-sub">${stage.sub}</div>` : ''}</div>`;
   for (let abs = 0; abs < 6; abs++) {
     const rel = getRelativeSeat(abs, state.mySeat);
     const act = state.playerActions[abs];
     let content = '';
-    if (act && act.type === 'play' && act.cards) {
+    if (act?.type === 'play' && act.cards?.length) {
+      const groups = new Map();
+      act.cards.forEach(card => {
+        const group = groups.get(card.rank) || {card, count:0};
+        group.count++;
+        groups.set(card.rank, group);
+      });
       content += '<div class="played-stack">';
-      act.cards.forEach(c => { content += cardHTML(c, true); });
+      groups.forEach(({card, count}) => {
+        content += `<div class="played-group" aria-label="${RANK_NAMES[card.rank]}，${count}张">${cardHTML(card, true)}<span class="play-count">×${count}</span></div>`;
+      });
       content += '</div>';
-      if (act.isKaiDian) {
-        content += '<span class="play-tag kaidian">开 点</span>';
-      } else if (act.isNormalFour) {
-        content += '<span class="play-tag normal4">平 出 4</span>';
-      } else if (isGoujiPlayClient(act.cards)) {
-        content += `<span class="play-tag gouji">${state.activeBurns?.[abs] ? '烧牌' : '够级'}</span>`;
-      }
+      let label = '', kind = '';
+      if (act.isKaiDian) { label = '开点'; kind = 'kaidian'; }
+      else if (act.isNormalFour) label = '平出 4';
+      else if (act.isJieShao) { label = '解烧'; kind = 'gouji'; }
+      else if (act.isFanShao || act.isShao || state.activeBurns?.[abs]) { label = '烧牌'; kind = 'burn'; }
+      else if ((state.tablePlay?.player === abs && state.tablePlay.isGouji) || isGoujiPlayClient(act.cards)) { label = '够级'; kind = 'gouji'; }
+      content += `<span class="play-tag ${kind}">${label ? label + ' · ' : ''}${act.cards.length}张</span>`;
     }
     html += `<div class="played-area ppos-${rel}">${content}</div>`;
   }
@@ -3518,6 +870,8 @@ function renderPlayedAreas(state) {
 
 function renderMyHand(state) {
   const container = document.getElementById('my-hand');
+  const wrap = document.getElementById('my-hand-wrap');
+  const previousScroll = { left: wrap.scrollLeft, top: wrap.scrollTop };
   container.innerHTML = '';
   const hand = state.myHand;
   if (!hand || hand.length === 0) return;
@@ -3535,14 +889,13 @@ function renderMyHand(state) {
   groups.forEach(group => {
     const groupEl = document.createElement('div');
     groupEl.className = 'card-group';
-    const ov = group.cards.length <= 4 ? 18 : 14;
+    if (group.cards.some(card => selectedCards.some(c => c.id === card.id))) groupEl.classList.add('is-selected');
     const selectableCards = getSelectableCards(group.cards);
     const groupLocked = selectableCards.length === 0;
 
     group.cards.forEach((card, idx) => {
       const el = createCardEl(card);
       const cardLocked = isCardLockedForState(card, state);
-      if (idx > 0) el.style.marginLeft = (-58 + ov) + 'px';
       if (selectedCards.some(c => c.id === card.id)) el.classList.add('selected');
       if (cardLocked) el.classList.add('locked');
 
@@ -3578,8 +931,7 @@ function renderMyHand(state) {
       badge.textContent = '×' + selectableCards.length;
       badge.addEventListener('click', (e) => {
         e.stopPropagation();
-        const suggested = getSelectableCards(getSuggestedSelectCards(selectableCards[0]));
-        toggleGroupSelect(suggested);
+        toggleGroupSelect(selectableCards);
       });
       groupEl.appendChild(badge);
     }
@@ -3587,8 +939,7 @@ function renderMyHand(state) {
     if (!groupLocked) {
       groupEl.addEventListener('click', (e) => {
         if (e.target !== groupEl) return;
-        const suggested = getSelectableCards(getSuggestedSelectCards(selectableCards[0]));
-        toggleGroupSelect(suggested);
+        toggleGroupSelect(selectableCards);
       });
     }
 
@@ -3602,6 +953,8 @@ function renderMyHand(state) {
 
     container.appendChild(groupEl);
   });
+  wrap.scrollLeft = previousScroll.left;
+  wrap.scrollTop = previousScroll.top;
 }
 
 function renderRankings(state) {
@@ -3633,7 +986,9 @@ function renderRankings(state) {
       ? `你当前没有4，可选择向 ${getPlayerName(state, state.pendingBuyFourTask.seller)} 买4或跳过`
       : (state.pendingReturnTask?.owedBy === state.mySeat
       ? `需还贡 ${state.pendingReturnTask.count} 张`
-      : (state.canKaiDian === state.mySeat ? '当前必须处理手里所有4' : (state.myHand?.every(c => c.rank === 3) ? '现在可以把3出完' : '3 只能最后出')));
+      : (state.canKaiDian === state.mySeat ? '当前必须处理手里所有4' : (state.myEquipment?.id === 'ruhe_ne' && !state.myEquipment.used
+        ? '装备生效：3 可以提前出'
+        : (state.myHand?.every(c => c.rank === 3) ? '现在可以把3出完' : '3 只能最后出'))));
     myMeta.innerHTML = [
       `<div class="meta-row">手牌：${state.handCounts?.[state.mySeat] ?? state.myHand?.length ?? 0} 张</div>`,
       `<div class="meta-row">已选：${selectedCards.length} 张</div>`,
@@ -3717,21 +1072,15 @@ function isGoujiPlayClient(cards) {
 }
 
 function getStageEventClient(state) {
-  const action = state?.playerActions?.[state?.currentPlayer];
-  if (action?.isKaiDian) {
-    return { label: '开点', sub: `${getPlayerName(state, state.currentPlayer)} 正在处理全部 4`, kind: 'normal4' };
-  }
-  if (action?.isNormalFour) {
-    return { label: '平出4', sub: '这一手没有转成开点', kind: 'normal4' };
-  }
-  if (action?.cards?.length && isGoujiPlayClient(action.cards)) {
-    return {
-      label: state.activeBurns?.[state.currentPlayer] ? '烧牌' : '够级',
-      sub: `${getPlayerName(state, state.currentPlayer)} 打出强牌`,
-      kind: state.activeBurns?.[state.currentPlayer] ? 'burn' : 'gold'
-    };
-  }
-  return { label: '够 级', sub: '', kind: 'idle' };
+  if (state.canKaiDian === state.mySeat) return {label:'开点机会',sub:'选择全部 4，开点或平出',kind:'gold'};
+  const play = state.tablePlay;
+  if (!play) return {label:'够 级',sub:'',kind:'idle'};
+  const action = state.playerActions?.[play.player];
+  const name = getPlayerName(state, play.player);
+  if (action?.isJieShao || play.isJieShao) return {label:'解烧',sub:`${name} 解烧`,kind:'gold'};
+  if (state.activeBurns?.[play.player]) return {label:action?.isFanShao?'反烧':'烧牌',sub:`${name} 正在烧牌`,kind:'burn'};
+  if (play.isGouji) return {label:'够级',sub:`${name} · 对头应牌`,kind:'gold'};
+  return {label:'够 级',sub:'',kind:'idle'};
 }
 
 // ============ INTERACTIONS ============
@@ -3780,7 +1129,8 @@ function isCardLockedForState(card, state = currentState) {
   if (state.pendingReturnTask?.owedBy === state.mySeat && card.tributeReceived) return true;
   if (state.canKaiDian === state.mySeat && card.rank !== 4) return true;
   const nonThreeCount = (state.myHand || []).filter(c => c.rank !== 3).length;
-  if (card.rank === 3 && nonThreeCount > 0) return true;
+  const canDiscardThree = state.myEquipment?.id === 'ruhe_ne' && !state.myEquipment.used;
+  if (card.rank === 3 && nonThreeCount > 0 && !canDiscardThree) return true;
   return false;
 }
 
@@ -3803,6 +1153,7 @@ function setCardSelection(card, shouldSelect) {
 
 function toggleSelect(card) {
   if (isCardLockedForState(card)) return;
+  playSelectSound();
   const idx = selectedCards.findIndex(c => c.id === card.id);
   if (idx >= 0) {
     selectedCards.splice(idx, 1);
@@ -3819,6 +1170,7 @@ function toggleSelect(card) {
 }
 
 function toggleGroupSelect(cards) {
+  playSelectSound();
   const selectable = getSelectableCards(cards);
   const ids = new Set((selectable || []).map(c => c.id));
   if (!ids.size) return;
@@ -3832,6 +1184,7 @@ function toggleGroupSelect(cards) {
 }
 
 function clearSelection() {
+  if (selectedCards.length) playSelectSound();
   selectedCards = [];
   refreshGameView();
 }
@@ -3946,24 +1299,23 @@ function renderTimer(state) {
   if (!el) return;
   clearInterval(countdownTimer);
   const tick = () => {
-    if (!currentState) {
-      el.textContent = '倒计时：--';
-      return;
+    if (!currentState) { el.textContent = '等待对局'; return; }
+    const s = currentState;
+    const isReturn = !!s.hasPendingReturn;
+    const isBuy = !!s.hasPendingBuyFour;
+    const isMine = isReturn ? !!s.pendingReturnTask : isBuy ? !!s.pendingBuyFourTask : s.currentPlayer === s.mySeat && !s.finished[s.mySeat];
+    const deadline = isReturn ? s.returnEndsAt : s.turnEndsAt;
+    const left = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : null;
+    const who = isMine ? '轮到你' : getPlayerName(s, s.currentPlayer);
+    const phase = isReturn ? (isMine ? '请还贡' : '等待还贡') : isBuy ? (isMine ? '买 4 或跳过' : '等待买 4') : who;
+    el.textContent = `${phase}${left === null ? '' : ` · ${left}s`}`;
+    el.classList.toggle('is-mine', isMine);
+    el.classList.toggle('is-urgent', isMine && left !== null && left <= 5);
+    const warningKey = `${isReturn ? 'return' : isBuy ? 'buy' : 'turn'}:${deadline}:${left}`;
+    if (isMine && left > 0 && left <= 5 && warningKey !== lastTimerWarning) {
+      lastTimerWarning = warningKey;
+      playLowTimeSound();
     }
-    const returnPhase = currentState.pendingReturnTask?.owedBy === currentState.mySeat;
-    const buyFourPhase = !!currentState.pendingBuyFourTask;
-    const deadline = returnPhase ? currentState.returnEndsAt : currentState.turnEndsAt;
-    if (!deadline) {
-      el.textContent = buyFourPhase ? '当前阶段：买4' : (returnPhase ? '当前阶段：还贡' : '倒计时：--');
-      return;
-    }
-    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-    const label = buyFourPhase
-      ? `当前阶段：买4`
-      : (returnPhase
-      ? `当前阶段：还贡｜剩余 ${left}s`
-      : `当前回合：${getPlayerName(currentState, currentState.currentPlayer)}｜剩余 ${left}s${currentState.currentPlayer === currentState.mySeat && !currentState.finished[currentState.mySeat] ? '｜你出牌' : ''}`);
-    el.textContent = label;
   };
   tick();
   countdownTimer = setInterval(tick, 250);
@@ -4036,6 +1388,7 @@ function showGameOver(data) {
     detail += `${RANK_LABELS[i+1]}: ${team} ${name}${me}\n`;
   });
 
+  playEndSound(allMine || (!allTheirs && mySum < theirSum));
   document.getElementById('go-title').textContent = title;
   document.getElementById('go-detail').textContent = detail.trim();
   const goBtn = document.getElementById('go-btn');
@@ -4148,6 +1501,12 @@ function toast(msg) {
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove('show'), 1800);
 }
+
+document.addEventListener('keydown', event => {
+  if (!currentState || document.getElementById('game').style.display === 'none' || event.repeat || event.target?.matches?.('input, textarea, select, button')) return;
+  if (event.key === 'Escape') { clearSelection(); return; }
+  if (event.key === 'Enter' && !document.getElementById('btn-play').disabled && selectedCards.length) { event.preventDefault(); doPlay(); }
+});
 
 // ============ INIT ============
 const originPill = document.getElementById('server-origin-pill');
