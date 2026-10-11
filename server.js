@@ -72,6 +72,11 @@ function createRoom(hostSocketId, hostName) {
     state: 'waiting',
     game: null,
     cheatArmed: false,
+    secretUsers: new Set(),
+    countViewers: new Set(),
+    seriesMode: 'five',
+    seriesCompleted: 0,
+    seriesTimer: null,
     nextRoundNumber: 1,
     pendingTribute: null,
     turnTimer: null,
@@ -102,7 +107,7 @@ const BOT_NAMES = ['阿海机', '小陈机', '老张机', '阿勇机', '小梁�
 // so this can't reopen the stuck-turn bugs that were just fixed.
 const EQUIPMENT_DEFS = [
   { id: 'yanpai', name: '我要验牌', desc: '下一局白送 1 次验牌机会（不用是张哲也能用）' },
-  { id: 'banwei', name: '班味', desc: '下一局你的出牌倒计时永久 +5 秒' },
+  { id: 'banwei', name: '班味', desc: '下一局轮到你时显示提醒，出牌时间统一20秒' },
   { id: 'aini_laoji', name: '爱你老己', desc: '下一局第一次孬急必定摸到对方点数最大的牌' },
   { id: 'jing_ziji', name: '敬自己一杯', desc: '下一局开局清空你的点贡/烧贡/闷贡欠账' },
   { id: 'saibo_duizhang', name: '赛博对账', desc: '下一局随时能看到大王/小王/2 已经出过几张' },
@@ -424,6 +429,7 @@ function chooseTimeoutLeadIds(game, seat) {
   hand.forEach((card) => rankCounts.set(card.rank, (rankCounts.get(card.rank) || 0) + 1));
 
   if (game.activeBurns?.[seat]) {
+    if (isExactlyAllRank(hand, 3)) return hand.map(c => c.id);
     const jokers = hand.filter(c => c.rank >= 16);
     if (jokers.length === 0) return [];
 
@@ -438,11 +444,6 @@ function chooseTimeoutLeadIds(game, seat) {
       return same.length ? same : [jokers[0].id];
     }
 
-    const threes = hand.filter(c => c.rank === 3);
-    if (threes.length > 0 && threes.length === hand.length) {
-      const check = canPlayFinalThree(game, seat, threes, []);
-      if (check.ok) return threes.map(c => c.id);
-    }
     return [];
   }
 
@@ -524,6 +525,7 @@ function chooseAutoBeatIds(game, seat, tableCards, requireShao = false) {
     }
   }
 
+  if (!best && !requireShao && target.count === 1 && target.bigJokers === 1 && (byRank.get(17) || []).length >= 2) return takeIds(17, 2);
   return best || [];
 }
 
@@ -602,7 +604,16 @@ function scheduleReturnTimer(room) {
 }
 
 function scheduleTurnTimer(room) {
-  clearTurnTimer(room);
+  if (room?.game && room.state === 'playing') {
+    ensureTurnSeatValid(room);
+    if (maybeGameOver(room.game)) { finishGame(room); return; }
+    const g = room.game;
+    const task = getCurrentBuyFourTask(g);
+    const key = JSON.stringify([g.roundNumber, task ? ['buy', task.buyer, g.buyFourTasks.indexOf(task)] : ['play', g.currentPlayer, g.canKaiDian, g.tablePlay?.player, g.tablePlay?.cards.map(c => c.id)]]);
+    if (room.turnTimer && g.turnTimerKey === key && g.turnEndsAt > Date.now()) return;
+    clearTurnTimer(room);
+    g.turnTimerKey = key;
+  } else clearTurnTimer(room);
   if (!room || !room.game || room.state !== 'playing') return;
   if (getCurrentReturnTask(room.game)) return;
   const buyFourTask = getCurrentBuyFourTask(room.game);
@@ -615,10 +626,8 @@ function scheduleTurnTimer(room) {
   ensureTurnSeatValid(room);
   const game = room.game;
   if (game.currentPlayer < 0 || game.finished[game.currentPlayer]) return;
-  // 班味: this round the equipped seat gets +5s on every one of their turns.
-  const banweiBonus = hasEquip(room, game.currentPlayer, 'banwei') ? 5000 : 0;
-  game.turnEndsAt = Date.now() + 20000 + banweiBonus;
-  room.turnTimer = setTimeout(() => handleTurnTimeout(room), 20050 + banweiBonus);
+  game.turnEndsAt = Date.now() + 20000;
+  room.turnTimer = setTimeout(() => handleTurnTimeout(room), 20050);
 }
 
 function handleTurnTimeout(room) {
@@ -946,7 +955,7 @@ function applyLuckyBuff(hands, luckySeat, laotianSeat = -1) {
   const donorSeats = [0,1,2,3,4,5].filter(s => s !== luckySeat && s !== laotianSeat);
   let upgrades = 0;
   while (upgrades < targetExtra) {
-    const myLow = hands[luckySeat].filter(c => c.rank < 10).sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit);
+    const myLow = hands[luckySeat].filter(c => c.rank > 3 && c.rank < 10).sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit);
     if (!myLow.length) break;
     donorSeats.sort((a, b) => hands[b].filter(isHigh).length - hands[a].filter(isHigh).length);
     let donor = -1;
@@ -974,7 +983,7 @@ function applyLuckyBuff(hands, luckySeat, laotianSeat = -1) {
   // seat loses a high card to 老田 instead, no matter how the loop above went.
   let reflected = false;
   if (laotianSeat >= 0 && laotianSeat !== luckySeat && (hands[laotianSeat]?.length || 0) > 0) {
-    const myLow = [...hands[laotianSeat]].sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)[0];
+    const myLow = hands[laotianSeat].filter(c => c.rank !== 3).sort((a, b) => (a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)[0];
     const theirHigh = [...hands[luckySeat]].filter(isHigh).sort((a, b) => (a.rank !== b.rank) ? b.rank - a.rank : a.suit - b.suit)[0];
     if (myLow && theirHigh) {
       hands[laotianSeat] = removeSpecificCards(hands[laotianSeat], [myLow]);
@@ -990,8 +999,11 @@ function applyLuckyBuff(hands, luckySeat, laotianSeat = -1) {
 }
 
 function deal(cheatSeat = -1, luckySeat = -1, laotianSeat = -1) {
-  const deck = createDeck(6);
+  const fullDeck = createDeck(6);
+  const threes = fullDeck.filter(c => c.rank === 3);
+  const deck = fullDeck.filter(c => c.rank !== 3);
   shuffle(deck);
+  shuffle(threes);
   const hands = [[], [], [], [], [], []];
 
   if (cheatSeat >= 0) {
@@ -1002,7 +1014,7 @@ function deal(cheatSeat = -1, luckySeat = -1, laotianSeat = -1) {
 
     const goodCount = 36 + Math.floor(Math.random() * 6);
     const myGood = good.splice(0, Math.min(goodCount, good.length));
-    const myNormal = normal.splice(0, 54 - myGood.length);
+    const myNormal = normal.splice(0, 53 - myGood.length);
     hands[cheatSeat] = [...myGood, ...myNormal];
 
     const remaining = [...good, ...normal];
@@ -1010,15 +1022,16 @@ function deal(cheatSeat = -1, luckySeat = -1, laotianSeat = -1) {
     let idx = 0;
     for (let i = 0; i < 6; i++) {
       if (i === cheatSeat) continue;
-      hands[i] = remaining.slice(idx, idx + 54);
-      idx += 54;
+      hands[i] = remaining.slice(idx, idx + 53);
+      idx += 53;
     }
   } else {
     for (let i = 0; i < 6; i++) {
-      hands[i] = deck.slice(i * 54, (i + 1) * 54);
+      hands[i] = deck.slice(i * 53, (i + 1) * 53);
     }
   }
 
+  hands.forEach((hand, seat) => hand.push(threes[seat]));
   if (luckySeat >= 0 && luckySeat !== cheatSeat) applyLuckyBuff(hands, luckySeat, laotianSeat);
   hands.forEach(sortHand);
   return hands;
@@ -1056,8 +1069,8 @@ function analyzePlay(cards) {
   return {
     count: cards.length,
     baseRank,
-    baseCount: normals.length,
-    coreCount: normals.length,
+    baseCount: normals.length + twos,
+    coreCount: normals.length + twos,
     flowerCount: twos + smallJ + bigJ,
     hasJoker: (smallJ + bigJ) > 0,
     bigJokers: bigJ,
@@ -1110,19 +1123,7 @@ function isGoujiPlay(cards, thresholdOverride = null) {
 
 function isShaoPlay(cards) {
   const a = analyzePlay(cards);
-  if (!a) return false;
-  if (a.specialOnly) return false;
-  if (a.flowerCount > 0) return true;
-  if (a.baseRank >= 16) return false;
-  if (a.baseRank === 15) return false;
-  return a.baseCount >= goujiThreshold(a.baseRank);
-}
-
-function compareSpecialOnly(a, t) {
-  if ((a.bigJokers || 0) !== (t.bigJokers || 0)) return (a.bigJokers || 0) > (t.bigJokers || 0) ? 1 : -1;
-  if ((a.smallJokers || 0) !== (t.smallJokers || 0)) return (a.smallJokers || 0) > (t.smallJokers || 0) ? 1 : -1;
-  if ((a.twos || 0) !== (t.twos || 0)) return (a.twos || 0) > (t.twos || 0) ? 1 : -1;
-  return 0;
+  return !!a && !a.specialOnly && a.hasJoker;
 }
 
 function compareMixedPlay(a, t) {
@@ -1130,7 +1131,6 @@ function compareMixedPlay(a, t) {
   if ((a.baseCount || 0) !== (t.baseCount || 0)) return (a.baseCount || 0) > (t.baseCount || 0);
   if ((a.bigJokers || 0) !== (t.bigJokers || 0)) return (a.bigJokers || 0) > (t.bigJokers || 0);
   if ((a.smallJokers || 0) !== (t.smallJokers || 0)) return (a.smallJokers || 0) > (t.smallJokers || 0);
-  if ((a.twos || 0) !== (t.twos || 0)) return (a.twos || 0) > (t.twos || 0);
   return false;
 }
 
@@ -1142,7 +1142,12 @@ function canBeat(cards, tableCards) {
   if (t.count === 1 && (t.bigJokers || 0) === 1 && (a.bigJokers || 0) === 2 && cards.length === 2) return true;
   if (a.count !== t.count) return false;
 
-  if (a.specialOnly && t.specialOnly) return compareSpecialOnly(a, t) > 0;
+  if (a.specialOnly && t.specialOnly) {
+    // Each special card must beat its counterpart; a spare 2 cannot cover another 2.
+    const ascending = list => list.map(c => c.rank).sort((x, y) => x - y);
+    const ours = ascending(cards), theirs = ascending(tableCards);
+    return ours.every((rank, i) => rank > theirs[i]);
+  }
   if (a.specialOnly && !t.specialOnly) {
     const pseudo = { baseRank: a.baseRank, baseCount: 0, twos: a.twos || 0, smallJokers: a.smallJokers || 0, bigJokers: a.bigJokers || 0 };
     return compareMixedPlay(pseudo, t);
@@ -1186,20 +1191,22 @@ function handCanBeatPlay(hand, tableCards) {
     return false;
   }
 
-  const maxBase = cnt[target.baseRank] || 0;
-  for (let useBase = 1; useBase <= Math.min(maxBase, need); useBase++) {
-    const remain1 = need - useBase;
-    const maxTwo = Math.min(cnt[15] || 0, remain1);
-    for (let useTwo = 0; useTwo <= maxTwo; useTwo++) {
-      const remain2 = remain1 - useTwo;
-      const maxSmall = Math.min(cnt[16] || 0, remain2);
-      for (let useSmall = 0; useSmall <= maxSmall; useSmall++) {
-        const remain3 = remain2 - useSmall;
-        const maxBig = Math.min(cnt[17] || 0, remain3);
-        for (let useBig = 0; useBig <= maxBig; useBig++) {
-          if (useBase + useTwo + useSmall + useBig != need) continue;
-          const cards = makeVirtualCards(target.baseRank, useBase, useTwo, useSmall, useBig);
-          if (canBeat(cards, tableCards)) return true;
+  for (let baseRank = target.baseRank; baseRank <= 14; baseRank++) {
+    const maxBase = cnt[baseRank] || 0;
+    for (let useBase = 1; useBase <= Math.min(maxBase, need); useBase++) {
+      const remain1 = need - useBase;
+      const maxTwo = Math.min(cnt[15] || 0, remain1);
+      for (let useTwo = 0; useTwo <= maxTwo; useTwo++) {
+        const remain2 = remain1 - useTwo;
+        const maxSmall = Math.min(cnt[16] || 0, remain2);
+        for (let useSmall = 0; useSmall <= maxSmall; useSmall++) {
+          const remain3 = remain2 - useSmall;
+          const maxBig = Math.min(cnt[17] || 0, remain3);
+          for (let useBig = 0; useBig <= maxBig; useBig++) {
+            if (useBase + useTwo + useSmall + useBig != need) continue;
+            const cards = makeVirtualCards(baseRank, useBase, useTwo, useSmall, useBig);
+            if (canBeat(cards, tableCards)) return true;
+          }
         }
       }
     }
@@ -1208,17 +1215,14 @@ function handCanBeatPlay(hand, tableCards) {
 }
 
 function canPlayFinalThree(game, seat, cards, remainingAfterPlay, room = null) {
-  if (!isExactlyAllRank(cards, 3)) return { ok: true };
+  if (!cards.some(c => c.rank === 3)) return { ok: true };
+  if (!isExactlyAllRank(cards, 3)) return { ok: false, msg: '3不能搭配其他牌' };
   // 如何呢又能怎: this round, the equipped seat can dump 3s any time — no
   // need to wait for their literal last hand. Purely a legality-gate bypass;
   // the cards still flow through the normal play/beat pipeline afterward.
   if (room && hasEquip(room, seat, 'ruhe_ne')) return { ok: true };
   if (remainingAfterPlay.length !== 0) return { ok: false, msg: '3只能作为最后一手牌打出' };
-  if (game.tablePlay) return { ok: false, msg: '3只能在新一轮作为最后一手牌打出' };
-  for (let p = 0; p < 6; p++) {
-    if (p === seat || game.finished[p]) continue;
-    if (handCanBeatPlay(game.hands[p], cards)) return { ok: false, msg: '现在出3还会被管住，不能出' };
-  }
+  if (game.tablePlay && !game.activeBurns?.[seat]) return { ok: false, msg: '3只能在新一轮作为最后一手牌打出' };
   return { ok: true };
 }
 
@@ -1493,18 +1497,26 @@ function maybeFinishPlayer(game, seat, room = null) {
 }
 
 function maybeGameOver(game) {
+  if (game.ended) return true;
   const active = activeSeats(game);
-  if (active.length <= 1) {
-    if (active.length === 1 && !game.rankings.includes(active[0])) game.rankings.push(active[0]);
-    finalizeFailedLastQueue(game);
-    return true;
+  if (active.length > 1 && !active.every(seat => sameTeam(seat, active[0]))) return false;
+  // Preserve players who already finished; rank the remaining team by hand size.
+  game.remainingCounts = game.hands.map(hand => hand.length);
+  game.winningTeam = active.length ? (TEAM_A.includes(active[0]) ? 'B' : 'A') : null;
+  active.sort((a, b) => game.hands[a].length - game.hands[b].length || a - b);
+  for (const seat of active) {
+    if (!game.rankings.includes(seat)) game.rankings.push(seat);
+    game.finished[seat] = true;
+    game.activeBurns[seat] = null;
   }
-  return false;
+  finalizeFailedLastQueue(game);
+  game.ended = true;
+  return true;
 }
 
 // ============ Tribute / Buy-Three ============
 function chooseCardsExcludingTribute(hand, n, dir = 'low') {
-  const safe = hand.filter(c => !c.tributeReceived);
+  const safe = hand.filter(c => c.rank !== 3 && !c.tributeReceived);
   const source = safe;
   const sorted = [...source].sort((a, b) => dir === 'low'
     ? ((a.rank !== b.rank) ? a.rank - b.rank : a.suit - b.suit)
@@ -1521,7 +1533,7 @@ function getHighestCards(hand, n) {
 }
 
 function getRandomCardsExcludingTribute(hand, n) {
-  const safe = hand.filter(c => !c.tributeReceived);
+  const safe = hand.filter(c => c.rank !== 3 && !c.tributeReceived);
   const source = [...safe];
   for (let i = source.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1803,7 +1815,7 @@ function getStateForPlayer(room, seat) {
   const prevPlay = game.tablePlay;
   const burnSourceSeat = (prevPlay && game.activeBurns?.[prevPlay.player]) ? prevPlay.player : -1;
   const burnEligible = burnSourceSeat >= 0 ? getEligibleRespondersToBurn(game, burnSourceSeat) : [];
-  const canBurnNow = !currentReturnTask && !currentBuyFourTask && !game.finished[seat] && !!prevPlay && (activeSeats(game).length || 0) >= 5 && (
+  const canBurnNow = seat !== prevPlay?.player && !game.passedThisRound.includes(seat) && !hasPendingUnplayedFourProtection(game, seat) && !currentReturnTask && !currentBuyFourTask && !game.finished[seat] && !!prevPlay && (activeSeats(game).length || 0) >= 5 && (
     (burnSourceSeat >= 0 && burnEligible.includes(seat) && seat !== getBurnOppositeSeat(game, burnSourceSeat)) ||
     (burnSourceSeat < 0 && !isResponderOpposite(prevPlay.player, seat) && (prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat)))
   );
@@ -1812,7 +1824,10 @@ function getStateForPlayer(room, seat) {
     myHand: game.hands[seat],
     mySeat: seat,
     myName: me?.name || '',
-    handCounts: game.hands.map(h => h.length),
+    handCounts: game.hands.map((h, i) => i === seat || room.countViewers.has(me?.id) ? h.length : null),
+    showHandCounts: room.countViewers.has(me?.id),
+    seriesMode: room.seriesMode,
+    seriesCompleted: room.seriesCompleted,
     finished: game.finished,
     rankings: game.rankings,
     currentPlayer: game.currentPlayer,
@@ -1831,6 +1846,9 @@ function getStateForPlayer(room, seat) {
     buyFourTasks: game.buyFourTasks || [],
     naojiUses: game.naojiUses || [0,0,0,0,0,0],
     naojiMax: game.naojiMax || [5,5,5,5,5,5],
+    serverNow: Date.now(),
+    turnRemainingMs: Math.max(0, (game.turnEndsAt || 0) - Date.now()),
+    returnRemainingMs: Math.max(0, (game.returnEndsAt || 0) - Date.now()),
     turnEndsAt: game.turnEndsAt || 0,
     playedPoolCount: (game.playedPool || []).length,
     noHeadSeat: getNoHeadSeat(game),
@@ -1952,7 +1970,7 @@ function runBotStep(room) {
     const prevPlay = game.tablePlay;
     const respondingToBurn = !!game.activeBurns?.[prevPlay.player];
     const isOpposite = respondingToBurn && seat === getBurnOppositeSeat(game, prevPlay.player);
-    const needBurnResponse = respondingToBurn && !isOpposite;
+    const needBurnResponse = respondingToBurn ? !isOpposite : activeSeats(game).length >= 5 && prevPlay.isGouji && !isResponderOpposite(prevPlay.player, seat) && useGoujiRestrictions(game, prevPlay.player, seat);
     const beatIds = chooseAutoBeatIds(game, seat, prevPlay.cards, needBurnResponse);
     result = beatIds.length ? processPlay(room, seat, beatIds, 'normal') : processPass(room, seat);
   } else {
@@ -1991,7 +2009,9 @@ function scheduleBotAction(room) {
 }
 
 function broadcastState(room) {
+  if (!room?.game || room.state !== 'playing') return;
   ensureTurnSeatValid(room);
+  if (maybeGameOver(room.game)) { finishGame(room); return; }
   room.players.forEach(p => io.to(p.id).emit('game_state', getStateForPlayer(room, p.seat)));
   scheduleBotAction(room);
 }
@@ -2027,10 +2047,14 @@ function settleDianTributes(room) {
 }
 
 function finishGame(room) {
+  if (!room?.game || room.state !== 'playing') return;
   clearTurnTimer(room);
   clearReturnTimer(room);
   clearBotTimer(room);
   room.state = 'gameover';
+  room.seriesCompleted++;
+  const continueSeries = room.seriesMode === 'unlimited' || room.seriesCompleted < 5;
+  const nextRoundAt = continueSeries && room.players.length === 6 ? Date.now() + 5000 : 0;
   resolveRoundEffects(room);
   settleDianTributes(room);
   room.pendingTribute = computePendingTribute(room.game.rankings);
@@ -2039,12 +2063,24 @@ function finishGame(room) {
   room.players.forEach(p => {
     io.to(p.id).emit('game_over', {
       rankings: room.game.rankings,
+      winningTeam: room.game.winningTeam,
+      remainingCounts: room.game.remainingCounts || room.game.hands.map(h => h.length),
+      seriesMode: room.seriesMode,
+      seriesCompleted: room.seriesCompleted,
+      nextRoundDelayMs: nextRoundAt ? 5000 : 0,
       players: room.players.map(pp => ({ name: pp.name, seat: pp.seat })),
     });
   });
   if (equipGrant) {
     const seatName = room.players.find(p => p.seat === equipGrant.seat)?.name || `${equipGrant.seat + 1}号`;
     io.to(room.code).emit('toast_msg', { msg: `${seatName} 垫底获得装备卡：${equipGrant.item.name}，下一局生效` });
+  }
+  if (nextRoundAt) {
+    clearTimeout(room.seriesTimer);
+    room.seriesTimer = setTimeout(() => {
+      room.seriesTimer = null;
+      if (rooms[room.code] === room && room.state === 'gameover' && room.players.length === 6) startRound(room);
+    }, 5000);
   }
 }
 
@@ -2069,7 +2105,9 @@ function executeFourChoice(room, seat, cards, kind = 'normal4') {
   if (maybeGameOver(game)) return { ok: true, gameOver: true };
   const logs = resolveRoundEffects(room);
   const nextStarter = game.finished[seat] ? pickCounterClockwiseStarter(game, seat) : seat;
+  const action = game.playerActions[seat];
   const res = resetRound(game, nextStarter);
+  game.playerActions[seat] = action;
   return { ...res, roundEffectLogs: logs, autoKind: kind };
 }
 
@@ -2088,7 +2126,8 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
     seat === burnVictimSeatEarly ||
     canSeatTakeOverBurn(game, prevPlay.player, seat)
   );
-  if (game.currentPlayer !== seat && !canInterruptBurn) return { ok: false, msg: '不是你的回合' };
+  const canInterruptGouji = !!prevPlay && !respondingToBurnEarly && seat !== prevPlay.player && !isResponderOpposite(prevPlay.player, seat) && activeSeats(game).length >= 5 && prevPlay.isGouji && useGoujiRestrictions(game, prevPlay.player, seat) && !hasPendingUnplayedFourProtection(game, seat) && !game.passedThisRound.includes(seat);
+  if (game.currentPlayer !== seat && !canInterruptBurn && !canInterruptGouji) return { ok: false, msg: '不是你的回合' };
   if (game.finished[seat]) return { ok: false, msg: '你已经出完了' };
 
   const hand = game.hands[seat];
@@ -2097,6 +2136,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (!allFoursSelectedIfPlayingFour(hand, cards)) return { ok: false, msg: '出4时必须把手里所有4一起打出' };
   const analyzed = analyzePlay(cards);
   if (!analyzed) return { ok: false, msg: '无效出牌组合' };
+  if (game.currentPlayer !== seat && canInterruptGouji && !isShaoPlay(cards)) return { ok: false, msg: '抢烧必须带王' };
   const remainingAfterPlayEarly = hand.filter(c => !cardIds.includes(c.id));
   const isLastThreeBurnException = !!game.activeBurns?.[seat] && isExactlyAllRank(cards, 3) && remainingAfterPlayEarly.length === 0;
   if (game.activeBurns?.[seat] && (analyzed.bigJokers + analyzed.smallJokers) <= 0 && !isLastThreeBurnException) return { ok: false, msg: '烧牌后每手都必须至少带一张王' };
@@ -2131,7 +2171,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
   if (respondingToBurn && seat !== prevPlay.player && !getEligibleRespondersToBurn(game, prevPlay.player).includes(seat)) {
     return { ok: false, msg: '当前只能解烧、反烧或接管烧牌' };
   }
-  if (prevPlay && !canBeat(cards, prevPlay.cards)) return { ok: false, msg: '压不住！' };
+  if (prevPlay && !(respondingToBurn && seat === prevPlay.player) && !canBeat(cards, prevPlay.cards)) return { ok: false, msg: '压不住！' };
   if (isBurnResponse && !isShaoPlay(cards)) return { ok: false, msg: '现在只能按烧牌规则上牌' };
   if (respondingToBurn && isVictimFanShao && hasPendingUnplayedFourProtection(game, seat)) return { ok: false, msg: '你还没出4，暂时不能反烧' };
 
@@ -2205,7 +2245,7 @@ function processPlay(room, seat, cardIds, playMode = 'normal') {
     return { ok: true };
   }
 
-  if (respondingToBurn && !isOppositeResponse && (isVictimFanShao || isOtherBurnTakeover)) {
+  if (!game.finished[seat] && respondingToBurn && !isOppositeResponse && (isVictimFanShao || isOtherBurnTakeover)) {
     game.activeBurns[seat] = { victim: prevPlay.player };
     game.pendingShao = { burner: seat, victim: prevPlay.player };
     game.currentPlayer = seat;
@@ -2369,31 +2409,75 @@ function processLet(room, seat) {
   return { ok: true };
 }
 
+function startRound(room) {
+  if (!room || room.players.length !== 6 || room.state === 'playing') return false;
+  clearTimeout(room.seriesTimer);
+  room.seriesTimer = null;
+  const cheatSeat = room.cheatArmed ? room.players.find(p => p.id === room.hostId)?.seat ?? -1 : -1;
+  const luckySeat = getLuckyBoostSeat(room.players);
+  const laotianSeat = getLaotianSeat(room.players);
+  const hands = deal(cheatSeat, luckySeat, laotianSeat);
+  if (luckySeat >= 0 && luckySeat !== cheatSeat && laotianSeat >= 0 && laotianSeat !== luckySeat) {
+    const luckyName = room.players.find(p => p.seat === luckySeat)?.name || ('座位' + (luckySeat + 1));
+    io.to(room.code).emit('toast_msg', { msg: `🛡️ 老田金钟罩：${luckyName} 的幸运光环对他没用，还倒贴了一张好牌给老田` });
+  }
+
+  const roundTributes = buildRoundTributes(room);
+  const stealLog = applyPointTributeSteal(hands, roundTributes);
+  const tributeRes = applyTribute(hands, roundTributes);
+  const tributeLog = [...stealLog, ...tributeRes.tributeLog];
+  const buySanLog = applyBuyThree(hands);
+  const buyFourRes = buildBuyFourTasks(hands);
+  buySanLog.push(...buyFourRes.logs);
+
+  const firstPlayer = (room.nextStarterSeat >= 0 && room.nextStarterSeat < 6)
+    ? room.nextStarterSeat
+    : (cheatSeat >= 0 ? cheatSeat : Math.floor(Math.random() * 6));
+  room.game = createGameState(hands, firstPlayer, room.nextRoundNumber++, tributeLog, buySanLog, room.players, tributeRes.returnTasks, buyFourRes.tasks);
+  room.game.forceKaiDianThisRound = [...(room.forceKaiDianThisRound || [false,false,false,false,false,false])];
+  room.state = 'playing';
+  room.cheatArmed = false;
+
+  // 我要验牌: grant one free peek even if this seat isn't 张哲.
+  for (let s = 0; s < 6; s++) {
+    if (hasEquip(room, s, 'yanpai') && room.game.peekMax[s] < 1) room.game.peekMax[s] = 1;
+  }
+
+  if (getCurrentReturnTask(room.game)) scheduleReturnTimer(room);
+  else scheduleTurnTimer(room);
+  broadcastState(room);
+  if (room.secretUsers.has(room.hostId)) io.to(room.hostId).emit('cheat_status', { armed: false });
+  return true;
+}
+
 // ============ SOCKET.IO ============
 io.on('connection', (socket) => {
   let currentRoom = null;
   let currentSeat = -1;
 
-  socket.on('create_room', ({ name }) => {
+  socket.on('create_room', ({ name, seriesMode }) => {
     const code = createRoom(socket.id, name || '房主');
+    rooms[code].seriesMode = seriesMode === 'unlimited' ? 'unlimited' : 'five';
     currentRoom = code;
     currentSeat = 0;
     socket.join(code);
     socket.emit('room_joined', {
       code,
       seat: 0,
+      seriesMode: rooms[code].seriesMode,
       players: rooms[code].players.map(p => ({ name: p.name, seat: p.seat })),
     });
   });
 
-  socket.on('create_bot_room', ({ name }) => {
+  socket.on('create_bot_room', ({ name, seriesMode }) => {
     const code = createRoom(socket.id, name || '房主');
+    rooms[code].seriesMode = seriesMode === 'unlimited' ? 'unlimited' : 'five';
     fillBotsForRoom(rooms[code]);
     currentRoom = code;
     currentSeat = 0;
     socket.join(code);
     const players = rooms[code].players.map(p => ({ name: p.name, seat: p.seat, isBot: !!p.isBot }));
-    socket.emit('room_joined', { code, seat: 0, players });
+    socket.emit('room_joined', { code, seat: 0, players, seriesMode: rooms[code].seriesMode });
     io.to(code).emit('player_list', { players });
   });
 
@@ -2410,7 +2494,7 @@ io.on('connection', (socket) => {
     socket.join(currentRoom);
 
     const playerList = room.players.map(p => ({ name: p.name, seat: p.seat }));
-    socket.emit('room_joined', { code: currentRoom, seat, players: playerList });
+    socket.emit('room_joined', { code: currentRoom, seat, players: playerList, seriesMode: room.seriesMode });
     io.to(currentRoom).emit('player_list', { players: playerList });
   });
 
@@ -2420,39 +2504,8 @@ io.on('connection', (socket) => {
     if (room.hostId !== socket.id) return socket.emit('error_msg', { msg: '只有房主可以开始游戏' });
     if (room.players.length < 6) return socket.emit('error_msg', { msg: `需要6人才能开始！当前${room.players.length}人` });
 
-    const cheatSeat = room.cheatArmed ? room.players.find(p => p.id === room.hostId)?.seat ?? -1 : -1;
-    const luckySeat = getLuckyBoostSeat(room.players);
-    const laotianSeat = getLaotianSeat(room.players);
-    const hands = deal(cheatSeat, luckySeat, laotianSeat);
-    if (luckySeat >= 0 && luckySeat !== cheatSeat && laotianSeat >= 0 && laotianSeat !== luckySeat) {
-      const luckyName = room.players.find(p => p.seat === luckySeat)?.name || ('座位' + (luckySeat + 1));
-      io.to(room.code).emit('toast_msg', { msg: `🛡️ 老田金钟罩：${luckyName} 的幸运光环对他没用，还倒贴了一张好牌给老田` });
-    }
-
-    const roundTributes = buildRoundTributes(room);
-    const stealLog = applyPointTributeSteal(hands, roundTributes);
-    const tributeRes = applyTribute(hands, roundTributes);
-    const tributeLog = [...stealLog, ...tributeRes.tributeLog];
-    const buySanLog = applyBuyThree(hands);
-    const buyFourRes = buildBuyFourTasks(hands);
-    buySanLog.push(...buyFourRes.logs);
-
-    const firstPlayer = (room.nextStarterSeat >= 0 && room.nextStarterSeat < 6)
-      ? room.nextStarterSeat
-      : (cheatSeat >= 0 ? cheatSeat : Math.floor(Math.random() * 6));
-    room.game = createGameState(hands, firstPlayer, room.nextRoundNumber++, tributeLog, buySanLog, room.players, tributeRes.returnTasks, buyFourRes.tasks);
-    room.game.forceKaiDianThisRound = [...(room.forceKaiDianThisRound || [false,false,false,false,false,false])];
-    room.state = 'playing';
-    room.cheatArmed = false;
-
-    // 我要验牌: grant one free peek even if this seat isn't 张哲.
-    for (let s = 0; s < 6; s++) {
-      if (hasEquip(room, s, 'yanpai') && room.game.peekMax[s] < 1) room.game.peekMax[s] = 1;
-    }
-
-    if (getCurrentReturnTask(room.game)) scheduleReturnTimer(room);
-    else scheduleTurnTimer(room);
-    broadcastState(room);
+    if (room.state !== 'waiting') return socket.emit('error_msg', { msg: '当前不能重复开始游戏' });
+    startRound(room);
   });
 
   socket.on('return_tribute', ({ cardIds }) => {
@@ -2464,6 +2517,7 @@ io.on('connection', (socket) => {
     const hand = room.game.hands[currentSeat] || [];
     const cards = takeCardsByIds(hand, cardIds || []);
     if (cards.length !== task.count) return socket.emit('error_msg', { msg: `请选择${task.count}张牌返还` });
+    if (cards.some(c => c.rank === 3)) return socket.emit('error_msg', { msg: '3不能用来还贡' });
     if (cards.some(c => c.tributeReceived)) return socket.emit('error_msg', { msg: '收到的贡牌本局不能再被进贡/还贡' });
     finalizeReturnTask(room, task, cards, false);
     io.to(currentRoom).emit('toast_msg', { msg: `${getSeatPlayerName(room, currentSeat)} 已完成还贡` });
@@ -2779,16 +2833,43 @@ io.on('connection', (socket) => {
     socket.emit('strategist_result', result);
   });
 
+  socket.on('set_series_mode', ({ mode } = {}) => {
+    const room = rooms[currentRoom];
+    if (!room || room.hostId !== socket.id || room.state !== 'waiting') return;
+    room.seriesMode = mode === 'unlimited' ? 'unlimited' : 'five';
+    io.to(room.code).emit('series_settings', { mode: room.seriesMode });
+  });
+
+  socket.on('secret_unlock', ({ password } = {}) => {
+    const room = rooms[currentRoom];
+    if (!room) return;
+    if (password !== '765213830') return socket.emit('error_msg', { msg: '口令不正确' });
+    room.secretUsers.add(socket.id);
+    room.countViewers.add(socket.id);
+    socket.emit('secret_status', { unlocked: true, showCounts: true, armed: room.cheatArmed, isHost: room.hostId === socket.id });
+    if (room.game && room.state === 'playing') socket.emit('game_state', getStateForPlayer(room, currentSeat));
+  });
+
+  socket.on('secret_counts', ({ enabled } = {}) => {
+    const room = rooms[currentRoom];
+    if (!room?.secretUsers.has(socket.id)) return;
+    if (enabled) room.countViewers.add(socket.id); else room.countViewers.delete(socket.id);
+    if (room.game && room.state === 'playing') socket.emit('game_state', getStateForPlayer(room, currentSeat));
+  });
+
   socket.on('cheat_toggle', () => {
     const room = rooms[currentRoom];
-    if (!room || room.hostId !== socket.id) return;
+    if (!room || room.hostId !== socket.id || !room.secretUsers.has(socket.id)) return;
     room.cheatArmed = !room.cheatArmed;
     socket.emit('cheat_status', { armed: room.cheatArmed });
   });
 
   socket.on('restart_game', () => {
     const room = rooms[currentRoom];
-    if (!room || room.hostId !== socket.id) return;
+    if (!room || room.hostId !== socket.id || room.state !== 'gameover') return;
+    clearTimeout(room.seriesTimer);
+    room.seriesTimer = null;
+    room.seriesCompleted = 0;
     clearTurnTimer(room);
     clearReturnTimer(room);
     clearBotTimer(room);
@@ -2803,12 +2884,15 @@ io.on('connection', (socket) => {
     const room = rooms[currentRoom];
     const leaving = room.players.find(p => p.id === socket.id);
 
+    room.secretUsers.delete(socket.id);
+    room.countViewers.delete(socket.id);
     room.players = room.players.filter(p => p.id !== socket.id);
 
     if (room.players.length === 0) {
       clearTurnTimer(room);
       clearReturnTimer(room);
       clearBotTimer(room);
+      clearTimeout(room.seriesTimer);
       delete rooms[currentRoom];
       return;
     }
@@ -2818,6 +2902,7 @@ io.on('connection', (socket) => {
       clearTurnTimer(room);
       clearReturnTimer(room);
       clearBotTimer(room);
+      clearTimeout(room.seriesTimer);
       delete rooms[currentRoom];
       return;
     }

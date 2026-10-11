@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>够级 - 联网对战</title>
-<link rel="stylesheet" href="/table.css?v=20261009">
+<link rel="stylesheet" href="/table.css?v=20261010">
 </head>
 <body>
 <div id="rotate-tip">建议横屏体验更舒服</div>
@@ -26,6 +26,8 @@
         <div class="hero-copy">
           先输入昵称。自己创建房间，或用 4 位房间号直接加入。
         </div>
+        <label class="field-label" for="series-mode">连续对局</label>
+        <select class="lobby-input series-select" id="series-mode"><option value="five">5 局连打</option><option value="unlimited">一直连打</option></select>
         <div class="field-stack">
           <div>
             <label class="field-label" for="input-name">昵称</label>
@@ -84,9 +86,12 @@
 <div id="waiting">
   <div class="waiting-shell">
     <div class="waiting-left">
+      <button class="waiting-brand" onclick="onTitleClick()">够级</button>
       <div class="room-code">房间号 <span id="room-code-display"></span></div>
       <div class="waiting-hint">把房间号告诉朋友，让他们加入<br>红队 vs 蓝队，座位1-3-5 对战 2-4-6</div>
       <div class="player-list" id="player-list"></div>
+      <label class="field-label" for="waiting-series-mode">连续对局</label>
+      <select class="lobby-input series-select" id="waiting-series-mode" onchange="socket?.emit('set_series_mode', {mode:this.value})"><option value="five">5 局连打</option><option value="unlimited">一直连打</option></select>
       <button id="btn-start" disabled onclick="doStart()">开 始 游 戏</button>
     </div>
 
@@ -107,6 +112,12 @@
   </div>
 </div>
 
+<div id="secret-panel" hidden>
+  <div class="secret-panel-title">小巧思 <button onclick="document.getElementById('secret-panel').hidden=true" aria-label="关闭">×</button></div>
+  <label><input id="secret-counts" type="checkbox" onchange="socket?.emit('secret_counts',{enabled:this.checked})"> 显示其他人手牌张数</label>
+  <button id="secret-good" onclick="socket?.emit('cheat_toggle')">下一局好牌：未开启</button>
+  <small>好牌由房主设置，下一次发牌生效</small>
+</div>
 <!-- ============ GAME TABLE ============ -->
 <div id="game">
   <header class="table-toolbar">
@@ -231,6 +242,9 @@ let audioUnlocked = false;
 
 // Cheat
 let _cClicks = 0, _cTimer = null;
+let secretUnlocked = false;
+let timerAnchor = null;
+let seriesCountdown = null;
 
 let soundMuted = false;
 let soundVolume = 0.65;
@@ -366,14 +380,27 @@ syncSoundControls();
 
 
 function onTitleClick() {
-  if (!isHost) return;
   _cClicks++;
   clearTimeout(_cTimer);
-  _cTimer = setTimeout(() => { _cClicks = 0; }, 500);
-  if (_cClicks >= 3) {
-    _cClicks = 0;
-    socket.emit('cheat_toggle');
-  }
+  _cTimer = setTimeout(() => { _cClicks = 0; }, 900);
+  if (_cClicks < 3) return;
+  _cClicks = 0;
+  if (!myRoom || !socket) { toast('先进入房间'); return; }
+  if (secretUnlocked) { document.getElementById('secret-panel').hidden = false; return; }
+  const password = prompt('输入口令');
+  if (password !== null) socket.emit('secret_unlock', { password });
+}
+
+function syncSeriesMode(mode) {
+  document.getElementById('waiting-series-mode').value = mode === 'unlimited' ? 'unlimited' : 'five';
+  document.getElementById('waiting-series-mode').disabled = !isHost;
+}
+
+function anchorTimer(state) {
+  const isReturn = !!state.hasPendingReturn;
+  const deadline = isReturn ? state.returnEndsAt : state.turnEndsAt;
+  const remaining = isReturn ? state.returnRemainingMs : state.turnRemainingMs;
+  timerAnchor = { state, deadline, at: performance.now(), remaining: Number.isFinite(remaining) ? remaining : Math.max(0, (deadline || 0) - (state.serverNow || Date.now())) };
 }
 
 // ============ CONNECTION ============
@@ -384,7 +411,20 @@ function connect() {
     myRoom = data.code;
     mySeat = data.seat;
     isHost = data.seat === 0;
+    secretUnlocked = false;
+    document.getElementById('secret-panel').hidden = true;
+    syncSeriesMode(data.seriesMode);
     showWaiting(data.code, data.players);
+  });
+
+  socket.on('series_settings', data => syncSeriesMode(data.mode));
+  socket.on('secret_status', data => {
+    secretUnlocked = !!data.unlocked;
+    document.getElementById('secret-panel').hidden = false;
+    document.getElementById('secret-counts').checked = !!data.showCounts;
+    document.getElementById('secret-good').disabled = !data.isHost;
+    document.getElementById('secret-good').textContent = `下一局好牌：${data.armed ? '已开启' : '未开启'}`;
+    playSecretSound();
   });
 
   socket.on('player_list', (data) => {
@@ -396,8 +436,12 @@ function connect() {
     const nextHandIds = new Set((state?.myHand || []).map(c => c.id));
     const sameHand = prevHandIds.size === nextHandIds.size && [...prevHandIds].every(id => nextHandIds.has(id));
     const sameTurn = currentState?.currentPlayer === state?.currentPlayer && state?.currentPlayer === state?.mySeat;
+    const sameRound = currentState?.roundNumber === state.roundNumber;
     currentState = state;
-    if (sameHand && sameTurn) {
+    isHost = !!state.isHost;
+    anchorTimer(state);
+    clearInterval(seriesCountdown);
+    if (sameRound && sameHand && sameTurn) {
       selectedCards = selectedCards.filter(c => nextHandIds.has(c.id));
     } else {
       selectedCards = [];
@@ -411,6 +455,10 @@ function connect() {
   });
 
   socket.on('back_to_lobby', (data) => {
+    clearInterval(seriesCountdown);
+    clearInterval(countdownTimer);
+    currentState = null;
+    timerAnchor = null;
     lastTurnPlayer = -1;
     document.getElementById('gameover').classList.remove('show');
     const goBtn = document.getElementById('go-btn');
@@ -450,7 +498,8 @@ function connect() {
       el.style.color = data.armed ? '#e85d5d' : '';
       el.style.opacity = data.armed ? '0.85' : '';
     }
-    toast(data.armed ? '已激活' : '已取消');
+    document.getElementById('secret-good').textContent = `下一局好牌：${data.armed ? '已开启' : '未开启'}`;
+    toast(data.armed ? '下一局好牌已开启' : '下一局好牌已关闭');
   });
 
   socket.on('player_disconnected', (data) => {
@@ -462,13 +511,13 @@ function connect() {
 function doCreate() {
   const name = document.getElementById('input-name').value.trim() || '房主';
   if (!socket) connect();
-  socket.emit('create_room', { name });
+  socket.emit('create_room', { name, seriesMode: document.getElementById('series-mode').value });
 }
 
 function doCreateBotRoom() {
   const name = document.getElementById('input-name').value.trim() || '房主';
   if (!socket) connect();
-  socket.emit('create_bot_room', { name });
+  socket.emit('create_bot_room', { name, seriesMode: document.getElementById('series-mode').value });
 }
 
 function doJoin() {
@@ -530,7 +579,7 @@ function startDemoGame() {
     currentPlayer: 0,
     roundNumber: 3,
     playedPoolCount: 34,
-    turnEndsAt: Date.now() + 15000,
+    turnEndsAt: Date.now() + 20000,
     returnEndsAt: null,
     pendingReturnTask: null,
     canPlay: true,
@@ -550,7 +599,7 @@ function startDemoGame() {
       { seat: 4, name: '小梁' },
       { seat: 5, name: '老张' }
     ],
-    handCounts: [14, 13, 15, 13, 12, 16],
+    handCounts: [14, null, null, null, null, null],
     finished: [false, false, false, false, false, false],
     playerActions: {
       1: { type: 'play', cards: [makeDemoCard('p1', 11, 2), makeDemoCard('p2', 11, 1)] },
@@ -791,7 +840,7 @@ function renderLabels(state) {
       const ri = state.rankings.indexOf(abs);
       statusHtml = `<div class="finish-text">${ri >= 0 ? RANK_LABELS[ri+1] : '烧失败'}</div>`;
     } else if (rel !== 0) {
-      statusHtml = `<div class="card-info">${state.handCounts[abs]}张 ${dianHtml}</div>`;
+      statusHtml = `<div class="card-info">${state.handCounts[abs] == null ? '' : state.handCounts[abs] + '张 '}${dianHtml}</div>`;
     } else {
       statusHtml = `<div class="card-info">${dianHtml}</div>`;
     }
@@ -1062,7 +1111,7 @@ function isGoujiPlayClient(cards) {
   if (normals.length === 0) return specials.length > 0;
   const baseRank = normals[0].rank;
   if (normals.some(c => c.rank !== baseRank)) return false;
-  const baseCount = normals.length;
+  const baseCount = normals.length + specials.filter(c => c.rank === 15).length;
   if (baseRank === 10) return baseCount >= 5;
   if (baseRank === 11) return baseCount >= 4;
   if (baseRank === 12) return baseCount >= 3;
@@ -1126,7 +1175,7 @@ function getSuggestedSelectCards(card) {
 
 function isCardLockedForState(card, state = currentState) {
   if (!card || !state) return false;
-  if (state.pendingReturnTask?.owedBy === state.mySeat && card.tributeReceived) return true;
+  if (state.pendingReturnTask?.owedBy === state.mySeat && (card.tributeReceived || card.rank === 3)) return true;
   if (state.canKaiDian === state.mySeat && card.rank !== 4) return true;
   const nonThreeCount = (state.myHand || []).filter(c => c.rank !== 3).length;
   const canDiscardThree = state.myEquipment?.id === 'ruhe_ne' && !state.myEquipment.used;
@@ -1139,7 +1188,7 @@ function getSelectableCards(cards) {
 }
 
 function refreshGameView() {
-  if (currentState) showGame(currentState);
+  if (currentState && !currentState.ended) showGame(currentState);
 }
 
 function setCardSelection(card, shouldSelect) {
@@ -1160,7 +1209,9 @@ function toggleSelect(card) {
   } else {
     const suggested = getSelectableCards(getSuggestedSelectCards(card));
     const responseTurn = !!currentState?.tablePlay && currentState?.currentPlayer === currentState?.mySeat;
-    if (responseTurn && selectedCards.length > 0) {
+    if (selectedCards.length > 0 && card.rank >= 15 && selectedCards.some(c => c.rank <= 14)) {
+      selectedCards.push(card);
+    } else if (responseTurn && selectedCards.length > 0 && card.rank <= 14 && selectedCards.some(c => c.rank <= 14 && c.rank !== card.rank)) {
       selectedCards = [...suggested];
     } else {
       suggested.forEach(c => { if (!selectedCards.some(s => s.id === c.id)) selectedCards.push(c); });
@@ -1298,6 +1349,7 @@ function renderTimer(state) {
   const el = document.getElementById('turn-timer');
   if (!el) return;
   clearInterval(countdownTimer);
+  if (timerAnchor?.state !== state) anchorTimer(state);
   const tick = () => {
     if (!currentState) { el.textContent = '等待对局'; return; }
     const s = currentState;
@@ -1305,7 +1357,7 @@ function renderTimer(state) {
     const isBuy = !!s.hasPendingBuyFour;
     const isMine = isReturn ? !!s.pendingReturnTask : isBuy ? !!s.pendingBuyFourTask : s.currentPlayer === s.mySeat && !s.finished[s.mySeat];
     const deadline = isReturn ? s.returnEndsAt : s.turnEndsAt;
-    const left = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : null;
+    const left = deadline ? Math.max(0, Math.ceil((timerAnchor.remaining - (performance.now() - timerAnchor.at)) / 1000)) : null;
     const who = isMine ? '轮到你' : getPlayerName(s, s.currentPlayer);
     const phase = isReturn ? (isMine ? '请还贡' : '等待还贡') : isBuy ? (isMine ? '买 4 或跳过' : '等待买 4') : who;
     el.textContent = `${phase}${left === null ? '' : ` · ${left}s`}`;
@@ -1358,6 +1410,11 @@ function doAlphaStrike() {
 
 // ============ GAME OVER ============
 function showGameOver(data) {
+  if (currentState) currentState.ended = true;
+  selectedCards = [];
+  document.querySelectorAll('#actions button').forEach(button => { button.disabled = true; });
+  clearInterval(countdownTimer);
+  clearInterval(seriesCountdown);
   const { rankings, players } = data;
   const myRankIdx = rankings.indexOf(mySeat);
 
@@ -1378,6 +1435,8 @@ function showGameOver(data) {
   else if (mySum < theirSum) title = '🎉 胜利！';
   else if (mySum > theirSum) title = '😢 败了...';
   else title = '🤝 平局';
+  const wonTeam = data.winningTeam;
+  if (wonTeam) title = wonTeam === (myTeamIsA ? 'A' : 'B') ? '🎉 你们团伙先出完，胜利！' : '😢 对方团伙先出完，本局结束';
 
   let detail = '';
   rankings.forEach((s, i) => {
@@ -1385,10 +1444,11 @@ function showGameOver(data) {
     const name = p ? p.name : '?';
     const team = TEAM_A.includes(s) ? '🔴' : '🔵';
     const me = s === mySeat ? ' ← 你' : '';
-    detail += `${RANK_LABELS[i+1]}: ${team} ${name}${me}\n`;
+    const count = data.remainingCounts?.[s] || 0;
+    detail += `${RANK_LABELS[i+1]}: ${team} ${name}${me}${count ? '（剩' + count + '张）' : ''}\n`;
   });
 
-  playEndSound(allMine || (!allTheirs && mySum < theirSum));
+  playEndSound(wonTeam ? wonTeam === (myTeamIsA ? 'A' : 'B') : allMine || (!allTheirs && mySum < theirSum));
   document.getElementById('go-title').textContent = title;
   document.getElementById('go-detail').textContent = detail.trim();
   const goBtn = document.getElementById('go-btn');
@@ -1396,6 +1456,21 @@ function showGameOver(data) {
   goBtn.textContent = '再 来 一 局';
   goBtn.style.display = isHost ? '' : 'none';
   document.getElementById('gameover').classList.add('show');
+  const progress = data.seriesMode === 'unlimited' ? `连续对局 · 已完成 ${data.seriesCompleted} 局` : `五局连打 · ${data.seriesCompleted || 1}/5 局`;
+  const baseDetail = detail.trim() + '\n\n' + progress;
+  if (data.nextRoundDelayMs) {
+    goBtn.style.display = 'none';
+    const until = performance.now() + data.nextRoundDelayMs;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((until - performance.now()) / 1000));
+      document.getElementById('go-detail').textContent = baseDetail + (left ? `\n${left} 秒后自动开始下一局` : '\n正在准备下一局…');
+    };
+    tick();
+    seriesCountdown = setInterval(tick, 250);
+  } else {
+    document.getElementById('go-detail').textContent = baseDetail + '\n本组对局已结束';
+    goBtn.textContent = '再开一组';
+  }
 }
 
 

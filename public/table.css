@@ -1796,3 +1796,20 @@ button:active:not(:disabled) {
     display:none
   }
 }
+
+/* Readable multiplicities and the optional room controls. */
+.played-group { padding-bottom: 13px; }
+.play-count { font-size: 14px; line-height: 19px; font-weight: 800; padding: 1px 7px; min-width: 28px; color: #fff1c2; background: #10382a; border: 1px solid #e5c576; box-shadow: 0 2px 5px #0005; }
+.series-select { margin: 5px 0 14px; width: 100%; color: #f2dfb2; background: #173c30; }
+.waiting-brand { border: 0; background: transparent; color: #e8d2a0; font: inherit; font-size: 24px; cursor: pointer; margin-bottom: 12px; }
+#secret-panel { position: fixed; top: 64px; left: 16px; z-index: 1500; width: min(290px, calc(100vw - 32px)); padding: 16px; border: 1px solid #c3a66f; border-radius: 12px; background: #163c30; color: #ffe8b6; box-shadow: 0 8px 32px #0008; }
+#secret-panel[hidden] { display: none; }
+.secret-panel-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: bold; }
+#secret-panel button { cursor: pointer; color: #ffe8b6; border: 1px solid #977c51; background: #285441; padding: 7px 10px; border-radius: 6px; }
+#secret-panel label { display: block; margin-bottom: 12px; }
+#secret-panel small { display: block; margin-top: 10px; font-size: 11px; opacity: .8; }
+#secret-panel button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 700px), (max-height: 500px) {
+  .play-count { font-size: 12px; line-height: 16px; padding: 1px 5px; min-width: 24px; }
+  .played-group { padding-bottom: 11px; }
+}
